@@ -3,6 +3,10 @@
 ;;;;
 ;;;; Synthesizer: Arturia modular V (Moog System 55 emulator)
 ;;;; Bank Selection: Gentle Gee
+;;;;
+;;;; LFE usage expects that the following are executed in the undertone
+;;;; directory created with this:
+;;;; * git@github.com:ut-proj/undertone.git
 (include-lib "include/notes/midi-name.lfe")
 (include-lib "include/arturia/modular-v/midi-gentle-gee.lfe")
 
