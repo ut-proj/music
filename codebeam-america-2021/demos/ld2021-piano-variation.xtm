@@ -1,0 +1,213 @@
+;;;; An undertone / Extempore demonstration of generative music with Markov
+;;;; chains, with a special focus on:
+;;;;
+;;;; * Stochaastic chord progressions and volume changes
+;;;; * Conditional changes in key
+;;;; * Progression durations via sinusoidal time
+;;;;
+;;;; Note that this is essentially the same demo as the second ("space jam")
+;;;; performed for the Lambda Days 2021 talk.
+
+;;; Setup from LFE
+;;;
+(clear)
+(undertone.repl.extempore:start)
+(load "/Users/oubiwann/lab/lfe/undertone-presentations/codebeam-america-2021/demos/init.xtm")
+(xt.midi:list-devices)
+
+;;; Setup from Extempore
+;;;
+(sys:load "/Users/oubiwann/lab/lfe/undertone-presentations/codebeam-america-2021/demos/init.xtm")
+(begin (pm_print_devices) (println))
+
+;; Setup Piano
+(define primary-midi-device-id 4) ; MIDI General to DAW running Ravenscroft Piano
+(define *midiout* (pm_create_output_stream primary-midi-device-id))
+;; MIDI channel 1
+(define midi-channel 0)
+
+(*metro* 'set-tempo 84)
+
+(define vols '(20 40 50 60 70))
+(define primary-vols '(50 60 70 75))
+
+(define beats-per-measure 2)
+(define note-timing 4)
+(define low c2)
+(define high c4)
+(define notes-per-chord 5)
+(define key c0)
+(define major '^)
+(define minor '-)
+(define minor-dur 72)
+(define major-dur 48)
+(define mode minor)
+(define primary-degrees '(i v))
+
+(define hhgg-intro-progression
+
+;; Manually change keys
+(begin
+  (set! mode major)
+  (set! key eb0)
+  (define seq-notes-main seq-notes-major))
+(begin
+  (set! mode minor)
+  (set! key c0)
+  (define seq-notes-main seq-notes-minor))
+
+;; Allowed transitions
+(define trans-1 '((i iv)
+                  (iv i)
+                  (vi iv)
+                  (viio i)))
+
+(define trans-2 '((i iv vi)
+                  (iv i)
+                  (vi iv)
+                  (viio i)))
+
+(define trans-3 '((i iv vi)
+                  (iv i viio)
+                  (vi iv)
+                  (viio i)))
+
+(define trans-4 '((i iv vi)
+                  (ii viio)
+                  (iv i viio)
+                  (vi iv)
+                  (viio i)))
+
+
+(define vol-trans '((20 20 40 50)
+                    (40 20 40 50)
+                    (50 20 40 50 60 70)
+                    (60 40 50 60 70)
+                    (70 50 60 70 75)
+                    (75 70 70 80)
+                    (80 70 75)))
+
+(define initial-volume 50)
+
+;;(define seq-notes-major (list eb3 bb3 ab3 eb4 g3 c4 g3 bb3))
+;;(define seq-notes-main seq-notes-major)
+
+(define sequencer-running? #f)
+(define seq-notes-major (list eb3 eb3 bb3 ab3 eb4 ab3 c4 bb3))
+(define seq-notes-minor (list c3 c3 g3 eb3 c4 eb3 g3 eb3))
+(define seq-notes-main seq-notes-minor)
+(define seq-notes seq-notes-minor)
+(define seq-notes-timing 1/4)
+(define seq-vol initial-volume)
+
+(define sequencer
+  (lambda (beat dur nlst vol-mod)
+    (set! sequencer-running? #t)
+    (mplay *midiout*
+           (car nlst)
+           (* vol-mod seq-vol)
+           dur
+           midi-channel)
+    (if (null? (cdr nlst))
+        (callback (*metro* (+ beat (* 1.0 dur)))
+                  'sequencer
+                  (+ beat dur)
+                  seq-notes-timing
+                  seq-notes
+                  1.0)
+        (callback (*metro* (+ beat (* 1.0 dur)))
+                  'sequencer
+                  (+ beat dur)
+                  seq-notes-timing
+                  (cdr nlst)
+                  0.5))))
+
+(define progression
+  (lambda (beat dur durs k m d l h npc vol)
+    (let ((adj-dur (if (member d primary-degrees)
+                       (random (list (* 2 dur) (* 4 dur)))
+                       dur))
+          (chord (pc:make-chord l h npc (pc:diatonic k m d))))
+      (println 'Selected: d)
+      (set! seq-vol (random (cdr (assoc vol-trans vol))))
+      ;; After we've played in Cm for a while, switch Eb
+      (if (and (equal? mode minor) (>= durs minor-dur))
+          (begin
+            (set! durs 0)
+            (set! mode major)
+            (set! key eb0)
+            (set! seq-notes-main seq-notes-major)
+            (println 'Key 'change: 'Cm '--> 'Eb)))
+      ;; After a shorter time in Eb, go back to Cm
+      (if (and (equal? mode major) (>= durs major-dur))
+          (begin
+            (set! durs 0)
+            (set! mode minor)
+            (set! key c0)
+            (set! seq-notes-main seq-notes-minor)
+            (println 'Key 'change: 'Eb '--> 'Cm)))
+      ;; Start the sequencer if it's not running (separate function; see above)
+      (if (not sequencer-running?)
+          (sequencer (*metro* 'get-beat beats-per-measure) seq-notes-timing seq-notes 1.0)
+          ;; Play different sequences, ranges, & volumes for different degrees / modes
+          (cond ((member d '(i vi))
+                 (set! seq-notes seq-notes-main))
+                ((equal? d 'viio)
+                 (pc:make-chord (- l 12) (- h 24) 2 (pc:diatonic k m d)))
+                (else
+                 (set! seq-notes (pc:make-chord (- l 12) h 5 (pc:diatonic k m d))))))
+      ;; Play the piano's chords
+      (for-each (lambda (note)
+                  (mplay *midiout*
+                         note
+                         vol
+                         adj-dur
+                         midi-channel))
+                chord)
+      ;; Allow different chord transitions at different times
+      (let* ((s (sinr 0 1 0.005))
+             (trans (cond ((>= s 0.3) trans-1)
+                          ((> s -0.7) trans-2)
+                          (else (if (equal? mode minor) trans-3 trans-4))))
+             (hi (if (>= s 0.3)
+                     high
+                     (+ high 12)))
+             (next-degree (random (cdr (assoc d trans))))
+             (next-vol (random (cdr (assoc vol-trans vol)))))
+        (print 'Transitions: trans "--> ")
+        ;; Set up the next chunk of the progression to be played
+        (callback (*metro* (+ beat (* 1 adj-dur)))
+                  'progression
+                  (+ beat adj-dur)
+                  note-timing
+                  (+ durs adj-dur)
+                  key
+                  mode
+                  next-degree
+                  low
+                  hi
+                  notes-per-chord
+                  next-vol)))))
+
+;; Start the progression
+(progression (*metro* 'get-beat beats-per-measure)
+             note-timing
+             0
+             key
+             mode
+             'i
+             low
+             high
+             notes-per-chord
+             initial-volume)
+
+;; Stop the progression
+(define progression
+  (lambda (beat dur total-dur degree low high) #t))
+
+;; Stop the sequencer
+(define sequencer
+  (lambda (beat dur nlst) #t))
+
+;; If restarting, be sure to reset the sequencer flag:
+(set! sequencer-running? #f)
