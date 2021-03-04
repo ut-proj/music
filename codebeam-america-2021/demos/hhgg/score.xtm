@@ -146,21 +146,20 @@
 
 ;; Allowed degree transitions
 (define trans
-  '(((I   4)  (IV  4))
-    ((III 1)  (IV  3))
-    ((III 3)  (i   8))
-    ((III 4)  (V   4))
-    ((IV  3)  (i   8))
-    ((IV  4)  (VI  4) (VI 8) (I 4) (i 4) (i 4) (i 4) (i 4) (i 4) (i 4))
-    ((IVo 4)  (IV  4))
-    ((V   4)  (IV  4))
-    ((VI  4)  (i   4))
-    ((VI  5)  (III 3))
-    ((VI  8)  (III 1) (iv 4) (IVo 4))
-    ((i   24) (VI  8))
-    ((i   4)  (III 1) (IV 4) (IV 4) (IV 4) (IV 4) (IV 4))
-    ((i   8)  (VI  8))
-    ((iv  4)  (IV  4))))
+  '(((I   4)   (IV  8))
+    ((III 2)   (IV  6))
+    ((III 6)   (i   18))
+    ((III 8)   (V   8))
+    ((IV  6)   (i   16))
+    ((IV  8)   (VI  8) (VI 16) (I 8) (i 8) (i 8) (i 8) (i 8) (i 8) (i 8))
+    ((V   8)   (IV  8))
+    ((VI  8)   (i   8))
+    ((VI  10)  (III 6))
+    ((VI  16)  (III 2) (iv 8))
+    ((i   24)  (VI  16))
+    ((i   8)   (III 2) (IV 8) (IV 8) (IV 8) (IV 8) (IV 8))
+    ((i   16)  (VI  16))
+    ((iv  8)   (IV  8))))
 
 ;;((VI  8)  (III 1) (iv 4) (IVo 4) (IV 16))))
 
@@ -207,16 +206,16 @@
 
 ;; Melody transitions from the original
 (define melody-transitions
-  (list (ab2 eb3)
-        (ab3 ab3 c3 c4 f4)
-        (c3 ab3 ab2 eb3)
-        (c4 c4 c5 d4 eb4)
-        (c5 c4 d4)
-        (d4 c4 eb4 eb4 g3)
-        (eb4 d4 f4 d4 ab3)
-        (f4 eb4 g4)
-        (g3 c4 eb3 bb3 d3)
-        (g4 eb4 bb3 d4)))
+  `((,ab2 ,eb3)
+    (,ab3 ,ab3 ,c3  ,c4  ,f4)
+    (,c3  ,ab3 ,ab2 ,eb3)
+    (,c4  ,c4  ,c5  ,d4  ,eb4)
+    (,c5  ,c4  ,d4)
+    (,d4  ,c4  ,eb4 ,eb4 ,g3)
+    (,eb4 ,d4  ,f4  ,d4  ,ab3)
+    (,f4  ,eb4 ,g4)
+    (,g3  ,c4  ,eb3 ,bb3 ,d3)
+    (,g4  ,eb4 ,bb3 ,d4)))
 
 (define play-melody
   (lambda (beat max-dur dur notes vol last-note total-dur)
@@ -305,15 +304,15 @@
            (tri (triad key-root degree))
            (chord (build-chord low high (random) tri))
            (melody (build-melody low high (random) tri)))
+      (println 'Degree: degree)
       ;; Depress the sustain pedal
       (send-midi-cc (+ (now) 1) *midiout* midi-sustain midi-on midi-channel)
-      ;; Play the piano's bass notes, potentially arpeggiating, but only if
-      ;; there are more than 3 notes in the chord
-      (if (< (length chord) 1)
-          (play-chord beat dur chord vol)
+      ;; Play the piano's bass notes, potentially arpeggiating
+      (if (< (length chord) 2)
+          (play-chord (+ 1 beat) dur chord vol)
           (if (> (random) 0.3)
-              (play-chord beat dur chord vol)
-              (play-arpeggio beat dur chord vol 0)))
+              (play-chord (+ 1 beat) dur chord vol)
+              (play-arpeggio (+ 1 beat) dur chord vol 0)))
       ;; Play the melody
       (play-melody beat dur 1 melody vol #f 0)
       
@@ -324,7 +323,7 @@
         (if (member (list degree (car next-degree-dur)) pedal-release-trans)
             (send-midi-cc (now) *midiout* midi-sustain midi-off midi-channel))
         ;; Set up the next chunk of the progression to be played
-        (callback (*metro* (+ beat (* 1 dur)))
+        (callback (*metro* (+ beat dur))
                   'progression
                   (+ beat dur)
                   next-degree-dur
