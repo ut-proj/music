@@ -33,3 +33,7 @@
     (for-each (lambda (note)
                 (play-note beat dur note vol))
               chord)))
+
+(define markov
+  (lambda (current allowed)
+    (random (cdr (assoc current allowed)))))

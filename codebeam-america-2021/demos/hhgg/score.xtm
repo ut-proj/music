@@ -142,6 +142,7 @@
 (define primary-midi-device-id 2) ; MIDI General to DAW running Ravenscroft Piano
 (define *midiout* (pm_create_output_stream primary-midi-device-id))
 
+(*metro* 'set-tempo 108)
 
 ;; Allowed degree transitions
 (define trans
@@ -197,22 +198,25 @@
     (3/2 1/2 1 1)
     (2 1/2 1 1)))
 
+(define timings
+  '((1/2 1/2 1/2 1/2 1)
+    (1 1/2 1 1 1 1 1 1 1 1 2 2 2 3 3 4)
+    (2 1)
+    (3 1)
+    (4 1)))
+
 ;; Melody transitions from the original
 (define melody-transitions
-  (list
-
-    (ab2 eb3)
-    (ab3 ab3 c3 c4 f4)
-    (c3 ab3 ab2 eb3)
-    (c4 c4 c5 d4 eb4)
-    (c5 c4 d4)
-    (d4 c4 eb4 eb4 g3)
-    (eb4 d4 f4 d4 ab3)
-    (f4 eb4 g4)
-    (g3 c4 eb3 bb3 d3)
-    (g4 eb4 bb3 d4)
-    
-    ))
+  (list (ab2 eb3)
+        (ab3 ab3 c3 c4 f4)
+        (c3 ab3 ab2 eb3)
+        (c4 c4 c5 d4 eb4)
+        (c5 c4 d4)
+        (d4 c4 eb4 eb4 g3)
+        (eb4 d4 f4 d4 ab3)
+        (f4 eb4 g4)
+        (g3 c4 eb3 bb3 d3)
+        (g4 eb4 bb3 d4)))
 
 (define play-melody
   (lambda (beat max-dur dur notes vol last-note total-dur)
@@ -222,43 +226,32 @@
            (note (if (eq? transition-notes #f)
                      (random notes)
                      (random (cdr transition-notes))))
+           (three-notes (list note (random notes) (random notes)))
            (play-type (random)))
       (if (< total-dur max-dur)
           (begin
-            ;; Determine type of note to play
             (cond
              ;; play the melody as a chord
-             ((> play-type 0)
-              (play-chord beat dur (list (random notes)
-                                         (random notes)
-                                         (random notes)) vol))
+             ((> play-type 0.7)
+              (play-chord beat dur three-notes vol))
              ;; play a single random note
-             ((> play-type 0.4)
-              (play-note beat dur note vol))
-             ;; play multiple notes
              ((> play-type 0.2)
-              (let ((second (random notes))
-                    (third (random notes))
-                    (fourth (random notes)))
-                (for-each
-                 (lambda (n)
-                   (play-note beat dur n vol))
-                 (list (uniq (list note second third fourth))))))
+              (play-note beat dur note vol))
              ;; triplets
              ((> play-type 0.05)
               (for-each
-               (lambda (_)
-                 (play-note beat (/ dur 3) note vol))
-               '(1 2 3)))
+               (lambda (n)
+                 (play-note beat (/ dur 3) n vol))
+               three-notes))
              ;; play a rest (no note)
              (#t 'play-rest))
             (callback (*metro* next-play)
                       'play-melody
                       next-play
                       max-dur
-                      (random (cdr (assoc dur timings)))
+                      (markov dur timings)
                       notes
-                      (random (cdr (assoc vol vol-trans)))
+                      (markov vol vol-trans)
                       note
                       total-dur))))))
 
@@ -277,7 +270,7 @@
                       next-play
                       max-dur
                       (append rest (list note))
-                      (random (cdr (assoc vol dynamic-vol-trans)))
+                      (markov vol dynamic-vol-trans)
                       total-dur))))))
 
 (define build-chord
@@ -316,7 +309,7 @@
       (send-midi-cc (+ (now) 1) *midiout* midi-sustain midi-on midi-channel)
       ;; Play the piano's bass notes, potentially arpeggiating, but only if
       ;; there are more than 3 notes in the chord
-      (if (< (length chord) 4)
+      (if (< (length chord) 1)
           (play-chord beat dur chord vol)
           (if (> (random) 0.3)
               (play-chord beat dur chord vol)
@@ -325,8 +318,8 @@
       (play-melody beat dur 1 melody vol #f 0)
       
       ;; Get the next transitions:
-      (let* ((next-degree-dur (random (cdr (assoc degree-dur trans))))
-             (next-vol (random (cdr (assoc vol vol-trans)))))
+      (let* ((next-degree-dur (markov degree-dur trans))
+             (next-vol (markov vol vol-trans)))
         ;; Release the sustain pedal
         (if (member (list degree (car next-degree-dur)) pedal-release-trans)
             (send-midi-cc (now) *midiout* midi-sustain midi-off midi-channel))
