@@ -1,9 +1,8 @@
 ;;;; An undertone / Extempore demonstration of generative music with Markov
-;;;; chains, with a special focus on:
+;;;; chains, with a special focus on incremental changes leading to more
+;;;; human-like performance.
 ;;;;
-;;;; * TBD
-;;;;
-;;;; Demo steps / script:
+;;;; Demo steps / script overview:
 ;;;;
 ;;;; * Show simple chords and transitions
 ;;;; * Add volume finesse and more complexity in chords
@@ -13,7 +12,13 @@
 ;;;; * Slower, quieter, and with sustain
 ;;;; * Dissonance
 ;;;; * Reverb
+;;;;
 
+;;;::::=------------------------------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;::=-   Detailed Background and Approach   -=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;::::=------------------------------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+;;;
 ;;; Simplified chord progression for Journey of the Sorcerer (theme for the
 ;;; Hitchhiker's Guide to the Galaxy):
 ;;;
@@ -126,15 +131,18 @@
 ;;; (iv  4)  -> (IV  4)
 ;;; (V   4)  -> (IV  4)
 
-;;; Setup from LFE
-;;;
+;;;;;::=------------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;::=-   Setup from LFE   -=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;::=------------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (clear)
 (undertone.repl.extempore:start)
 
-;;; Setup from Extempore & LFE both:
-;;;
+;;;;;::=-----------------------------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;::=-   Setup from Extempore & LFE both   -=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;::=-----------------------------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (define base-dir "/Users/oubiwann/lab/lfe/undertone-presentations/")
-;(define base-dir "/Users/dmcgreggor/lab/lfe/undertone-presentations/")
 (define demo-dir (string-append base-dir "codebeam-america-2021/demos/"))
 
 (sys:load (string-append demo-dir "init.xtm"))
@@ -144,17 +152,16 @@
 (begin (pm_print_devices) (println))
 
 ;; Setup Piano
-(define *primary-midi-device-id* 4) ; MIDI device -> DAW/Ravenscroft Piano (laptop)
-(define *primary-midi-device-id* 2) ; MIDI device -> DAW/Ravenscroft Piano (workstation)
+(define *primary-midi-device-id* 2) ; MIDI device -> DAW/Ravenscroft Piano
 (define *midiout* (pm_create_output_stream *primary-midi-device-id*))
 
 (*metro* 'set-tempo 108)
 
-;; Allowed degree transitions
-
 ;;;;;::=-----------------------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;::=-   Definitions for All Steps   -=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;::=-----------------------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; Allowed degree transitions, based upon the background analysis above:
 
 (define *mode-trans*
   '(((I   2)  (IV  4))
@@ -173,12 +180,10 @@
     ((i   5)  (VI  6))
     ((iv  6)  (IV  6))))
 
-;;((VI  8)  (III 1) (iv 4) (IVo 4) (IV 16))))
-
 (define *vol-trans*
   '((50 50)))
 
-;; Stop the progression
+;; To stop the progression at any time:
 (define progression
   (lambda (beat degree-dur vol) #t))
 
@@ -188,12 +193,15 @@
 ;;;;;::=--------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
 ;;; Features:
-;;; * HHGG chord transitions
+;;; * Create an endless progression of chords
+;;; * Utilise the HHGG chord transitions
 
+;; Utility function for creating a chord
 (define build-chord
   (lambda (lo hi _complexity base-triad)
     (pc:make-chord lo hi *notes-per-chord* base-triad)))
 
+;; Initial definition of our progression
 (define progression
   (lambda (beat degree-dur vol)
     (let* ((degree (car degree-dur))
@@ -223,9 +231,10 @@
 ;;;;;::=---------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
 ;;; Features:
-;;; * HHGG chord transitions
-;;; * Changes in volume between chords
-;;; * Changes in numbers of notes per chord
+;;; * Create an endless progression of chords
+;;; * Utilise the HHGG chord transitions
+;;; * Allow for changes in volume between chords
+;;; * Also allow for changes in numbers of notes per chord
 ;;; * Play the notes of a single chord with different volumes
 
 (define *vol-trans*
@@ -289,12 +298,13 @@
 ;;;;;::=--------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
 ;;; Features:
-;;; * HHGG chord transitions
-;;; * Changes in volume between chords
-;;; * Changes in numbers of notes per chord
+;;; * Create an endless progression of chords
+;;; * Utilise the HHGG chord transitions
+;;; * Allow for changes in volume between chords
+;;; * Also allow for changes in numbers of notes per chord
 ;;; * Play the notes of a single chord with different volumes
 ;;; * Add arpeggiation to the bass notes
-;;; * Add syncopation
+;;; * Add occasional syncopation
 
 (define play-arpeggio
   (lambda (beat max-dur notes note-dur vol total-dur)
@@ -375,13 +385,14 @@
 ;;;;;::=---------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
 ;;; Features:
-;;; * HHGG chord transitions
-;;; * Changes in volume between chords
-;;; * Changes in numbers of notes per chord
+;;; * Create an endless progression of chords
+;;; * Utilise the HHGG chord transitions
+;;; * Allow for changes in volume between chords
+;;; * Also allow for changes in numbers of notes per chord
 ;;; * Play the notes of a single chord with different volumes
 ;;; * Add arpeggiation to the bass notes
-;;; * Add syncopation
-;;; * Play a simple melody
+;;; * Add occasional syncopation
+;;; * Create and play a simple melody
 
 (define *melody-timings*
   '((1/2 1/2)
@@ -451,14 +462,16 @@
 ;;;;;::=--------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
 ;;; Features:
-;;; * HHGG chord transitions
-;;; * Changes in volume between chords
-;;; * Changes in numbers of notes per chord
+;;; * Create an endless progression of chords
+;;; * Utilise the HHGG chord transitions
+;;; * Allow for changes in volume between chords
+;;; * Also allow for changes in numbers of notes per chord
 ;;; * Play the notes of a single chord with different volumes
 ;;; * Add arpeggiation to the bass notes
-;;; * Add syncopation
-;;; * Play a more complicated melody
-;;; * Less chaos in the timings of the melody notes
+;;; * Add occasional syncopation
+;;; * Create and play a simple melody
+;;; * Augment melogy with more complications
+;;; * Reduce some of the chaos in the timings of the melody notes
 
 (define build-melody
   (lambda (lo hi melody-type base-triad degree)
@@ -493,9 +506,6 @@
              ;; play a single random note
              ((> play-type 0.1)
               (play-note beat (* dur 2) note vol))
-             ;; triplets
-             ;((> play-type 0.1)
-             ; (play-triplet beat dur three-notes vol))
              ;; play the melody as a chord
              ((> play-type 0.05)
               (play-chord (maybe-syncopate beat) dur three-notes vol))
@@ -521,14 +531,16 @@
 ;;;;;::=--------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
 ;;; Features:
-;;; * HHGG chord transitions
-;;; * Changes in volume between chords
-;;; * Changes in numbers of notes per chord
+;;; * Create an endless progression of chords
+;;; * Utilise the HHGG chord transitions
+;;; * Allow for changes in volume between chords
+;;; * Also allow for changes in numbers of notes per chord
 ;;; * Play the notes of a single chord with different volumes
 ;;; * Add arpeggiation to the bass notes
-;;; * Add syncopation
-;;; * Play a more complicated melody
-;;; * Simplify the timings of the melody notes
+;;; * Add occasional syncopation
+;;; * Create and play a simple melody
+;;; * Augment melogy with more complications
+;;; * Reduce some of the chaos in the timings of the melody notes
 ;;; * Slow the piece down
 ;;; * Soften the volume
 ;;; * Add sustain pedal
@@ -603,15 +615,18 @@
 ;;;;;::=----------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
 ;;; Features:
-;;; * HHGG chord transitions
-;;; * Changes in volume between chords
-;;; * Changes in numbers of notes per chord
+;;; * Create an endless progression of chords
+;;; * Utilise the HHGG chord transitions
+;;; * Allow for changes in volume between chords
+;;; * Also allow for changes in numbers of notes per chord
 ;;; * Play the notes of a single chord with different volumes
 ;;; * Add arpeggiation to the bass notes
-;;; * Add syncopation
-;;; * Play a more complicated melody
-;;; * Simplify the timings of the melody notes
+;;; * Add occasional syncopation
+;;; * Create and play a simple melody
+;;; * Augment melogy with more complications
+;;; * Reduce some of the chaos in the timings of the melody notes
 ;;; * Slow the piece down
+;;; * Soften the volume
 ;;; * Add sustain pedal
 ;;; * Dissonance!
 
@@ -644,12 +659,6 @@
              ;; play a single random note
              ((> play-type 0.1)
               (play-note beat dur note vol))
-             ;; triplets
-             ;((> play-type 0.3)
-             ; (for-each
-             ;  (lambda (n)
-             ;    (play-note beat (/ dur 3) n vol))
-             ;  three-notes))
              ;; play the melody as a chord
              ((> play-type 0.05)
               (play-chord (maybe-syncopate beat) dur three-notes vol))
@@ -670,21 +679,24 @@
 ;;;;;::=--------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
 ;;; Features:
-;;; * HHGG chord transitions
-;;; * Changes in volume between chords
-;;; * Changes in numbers of notes per chord
+;;; * Create an endless progression of chords
+;;; * Utilise the HHGG chord transitions
+;;; * Allow for changes in volume between chords
+;;; * Also allow for changes in numbers of notes per chord
 ;;; * Play the notes of a single chord with different volumes
 ;;; * Add arpeggiation to the bass notes
-;;; * Add syncopation
-;;; * Play a more complicated melody
-;;; * Simplify the timings of the melody notes
+;;; * Add occasional syncopation
+;;; * Create and play a simple melody
+;;; * Augment melogy with more complications
+;;; * Reduce some of the chaos in the timings of the melody notes
 ;;; * Slow the piece down
+;;; * Soften the volume
 ;;; * Add sustain pedal
-;;; * Dissonance!
-;;; * Reverb :-D
+;;; * Add a touch of reverb
 ;;; * Reduce dissonancne, volume levels
 ;;; * Lengthen times and reduce number of chords
 ;;; * Slow tempo some more
+;;; * Reduce transitions to the final state
 ;;; * Stop progression
 
 (define *vol-trans*
