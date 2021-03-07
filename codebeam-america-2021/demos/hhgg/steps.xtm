@@ -1,0 +1,787 @@
+;;;; An undertone / Extempore demonstration of generative music with Markov
+;;;; chains, with a special focus on:
+;;;;
+;;;; * TBD
+;;;;
+;;;; Demo steps / script:
+;;;;
+;;;; * Show simple chords and transitions
+;;;; * Add volume finesse and more complexity in chords
+;;;; * Arpeggiation and syncopation
+;;;; * Add melody
+;;;; * More complex melody
+;;;; * Slower, quieter, and with sustain
+;;;; * Dissonance
+;;;; * Reverb
+
+;;; Simplified chord progression for Journey of the Sorcerer (theme for the
+;;; Hitchhiker's Guide to the Galaxy):
+;;;
+;;; Key: Cm
+;;;
+;;; .  .  . . | .    . . . | .  Cm . . | .  . . .
+;;; .  .  . . | .    . . . | .  .  . . | Ab . . .
+;;; .  .  . . | Fm   . . . | F  .  . . | Ab . . .
+;;; .  Eb . . | Cm   . . . | .  .  . . | Ab . . .
+;;; .  .  . . | Fdim . . . | F  .  . . | Ab . . .
+;;; .  .  . . | Eb   . . . | G  .  . . | F  . . .
+;;; Cm .  . . | F    . . . | Cm .  . . | F  . . .
+;;; Cm .  . . | F    . . . | Cm .  . . | F  . . .
+;;; C  .  . . | F    . . . | Cm .  . . | F  . . .
+;;; Cm .  . . | Eb   F . . | Cm .  . . | .  . . .
+;;; Ab .  . . | .    . . . | F  .  . . | .  . . .
+;;; .  .  . . | .    . . . | .
+;;;
+;;; Chords -> Modes:
+;;; * Cm   = i   (natural + melodic minor)
+;;; * Fm   = iv  (natural minor)
+;;; * F    = IV  (melodic minor)
+;;; * Ab   = VI  (natural minor)
+;;; * Eb   = III (natural minor)
+;;; * Fdim = IVo
+;;; * G    = V   (melodic minor)
+;;; * C    = I   (major)
+;;;
+;;; Rewriting the chord progression in modes, we have this:
+;;;
+;;; .  .   . . | .   .  . . | .  i  . . | .  . . .
+;;; .  .   . . | .   .  . . | .  .  . . | VI . . .
+;;; .  .   . . | iv  .  . . | IV .  . . | VI . . .
+;;; .  III . . | i   .  . . | .  .  . . | VI . . .
+;;; .  .   . . | IVo .  . . | IV .  . . | VI . . .
+;;; .  .   . . | III .  . . | V  .  . . | IV . . .
+;;; i  .   . . | IV  .  . . | i  .  . . | IV . . .
+;;; i  .   . . | IV  .  . . | i  .  . . | IV . . .
+;;; I  .   . . | IV  .  . . | i  .  . . | IV . . .
+;;; i  .   . . | III IV . . | i  .  . . | .  . . .
+;;; VI .   . . | .   .  . . | IV .  . . | .  . . .
+;;; .  .   . . | .   .  . . | .
+;;;
+;;; Transitions:
+;;;
+;;; I   -> IV  (1)
+;;; III -> IV  (1) V  (1) i   (1)
+;;; IV  -> I   (1) VI (2) i   (7)
+;;; IVo -> IV  (1)
+;;; V   -> IV  (1)
+;;; VI  -> III (2) IV (1) IVo (1) iv (1)
+;;; i   -> III (1) IV (5) VI  (3)
+;;; iv  -> IV  (1)
+;;;
+;;; Key changes (Nm=Natural Minor, Mm=Melodic Minor, M=Major):
+;;;
+;;; .  . . . | .  .  . . | .  Nm . . | .  . . .
+;;; .  . . . | .  .  . . | .  .  . . | .  . . .
+;;; .  . . . | .  .  . . | Mm .  . . | Nm . . .
+;;; .  . . . | .  .  . . | .  .  . . | .  . . .
+;;; .  . . . | .  .  . . | Mm .  . . | Nm . . .
+;;; .  . . . | .  .  . . | Mm .  . . | .  . . .
+;;; .  . . . | .  .  . . | .  .  . . | .  . . .
+;;; .  . . . | .  .  . . | .  .  . . | .  . . .
+;;; M  . . . | Mm .  . . | .  .  . . | .  . . .
+;;; .  . . . | Nm Mm . . | .  .  . . | .  . . .
+;;; Nm . . . | .  .  . . | Nm .  . . | .  . . .
+;;; .  . . . | .  .  . . | .
+;;;
+;;; Chord + timing changes (format is chord + beat count + occurances):
+;;;
+;;; Ab   5  -> Eb   3
+;;; Ab   8  -> Eb   1
+;;; Ab   8  -> Fm   4
+;;; Ab   8  -> Fmin 4
+;;; C    4  -> F    4
+;;; Cm   15 -> Ab   8
+;;; Cm   4  -> Eb   1
+;;; Cm   4  -> F    4 (x5)
+;;; Cm   8  -> Ab   8
+;;; Eb   1  -> F    3
+;;; Eb   3  -> Cm   8
+;;; Eb   4  -> G    4
+;;; F    3  -> Cm   8
+;;; F    4  -> Ab   4
+;;; F    4  -> Ab   8
+;;; F    4  -> C    4
+;;; F    4  -> Cm   4 (x6)
+;;; Fo   4  -> F    4
+;;; Fm   4  -> F    4
+;;; G    4  -> F    4
+;;;
+;;; Beignning: empty 9 -> Cm 15
+;;; End:       Ab    8 -> F  17
+;;;
+;;; Converted to modes:
+;;;
+;;; (VI  5)  -> (III 3)
+;;; (VI  8)  -> (III 1) (iv 4) (IVo 4)
+;;; (I   4)  -> (IV  4)
+;;; (i   24) -> (VI  8)
+;;; (i   4)  -> (III 1) (IV 4) (IV 4) (IV 4) (IV 4) (IV 4)
+;;; (i   8)  -> (VI  8)
+;;; (III 1)  -> (IV  3)
+;;; (III 3)  -> (i   8)
+;;; (III 4)  -> (V   4)
+;;; (IV  3)  -> (i   8)
+;;; (IV  4)  -> (VI  4) (VI 8) (I 4) (i 4) (i 4) (i 4) (i 4) (i 4) (i 4)
+;;; (IVo 4)  -> (IV  4)
+;;; (iv  4)  -> (IV  4)
+;;; (V   4)  -> (IV  4)
+
+;;; Setup from LFE
+;;;
+(clear)
+(undertone.repl.extempore:start)
+
+;;; Setup from Extempore & LFE both:
+;;;
+(define base-dir "/Users/oubiwann/lab/lfe/undertone-presentations/")
+;(define base-dir "/Users/dmcgreggor/lab/lfe/undertone-presentations/")
+(define demo-dir (string-append base-dir "codebeam-america-2021/demos/"))
+
+(sys:load (string-append demo-dir "init.xtm"))
+(sys:load (string-append demo-dir "hhgg/defaults.xtm"))
+(sys:load (string-append demo-dir "hhgg/funs.xtm"))
+
+(begin (pm_print_devices) (println))
+
+;; Setup Piano
+(define *primary-midi-device-id* 4) ; MIDI device -> DAW/Ravenscroft Piano (laptop)
+(define *primary-midi-device-id* 2) ; MIDI device -> DAW/Ravenscroft Piano (workstation)
+(define *midiout* (pm_create_output_stream *primary-midi-device-id*))
+
+(*metro* 'set-tempo 108)
+
+;; Allowed degree transitions
+
+;;;;;::=-----------------------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;::=-   Definitions for All Steps   -=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;::=-----------------------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define *mode-trans*
+  '(((I   2)  (IV  4))
+    ((I   6)  (IV  6))
+    ((III 1)  (IV  5)  (i 5))
+    ((III 3)  (i   3)  (V 3))
+    ((IV  4)  (VI  6)  (VI 6) (I 6) (i 6) (i 6) (i 6) (i 6) (i 6) (i 6))
+    ((IV  5)  (VI  6))
+    ((IV  6)  (VI  6))
+    ((V   3)  (IV  6))
+    ((VI  6)  (i   6))
+    ((VI  6)  (III 1)  (iv 6))
+    ((i   12) (VI  6))
+    ((i   3)  (IV  6) (III 3))
+    ((i   6)  (III 1)  (IV 6) (IV 6) (IV 6) (IV 6) (IV 6))
+    ((i   5)  (VI  6))
+    ((iv  6)  (IV  6))))
+
+;;((VI  8)  (III 1) (iv 4) (IVo 4) (IV 16))))
+
+(define *vol-trans*
+  '((50 50)))
+
+;; Stop the progression
+(define progression
+  (lambda (beat degree-dur vol) #t))
+
+
+;;;;;::=--------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;::=-   First Step   -=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;::=--------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+;;; Features:
+;;; * HHGG chord transitions
+
+(define build-chord
+  (lambda (lo hi _complexity base-triad)
+    (pc:make-chord lo hi *notes-per-chord* base-triad)))
+
+(define progression
+  (lambda (beat degree-dur vol)
+    (let* ((degree (car degree-dur))
+           (dur (cadr degree-dur))
+           (tri (triad *key-root* degree))
+           (chord (build-chord *low* *high* (random) tri)))
+      (println 'Degree: degree)
+      ;; Play the piano's bass notes, potentially arpeggiating
+      (play-chord beat dur chord vol)
+      ;; Get the next transitions:
+      (let* ((next-degree-dur (markov degree-dur *mode-trans*))
+             (next-vol (markov vol *vol-trans*)))
+        ;; Set up the next chunk of the progression to be played
+        (callback (*metro* (+ beat dur))
+                  'progression
+                  (+ beat dur)
+                  next-degree-dur
+                  next-vol)))))
+
+;; Start the progression
+(progression (*metro* 'get-beat *beats-per-measure*)
+             *initial-degree-duration*
+             *initial-volume*)
+
+;;;;;::=---------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;::=-   Second Step   -=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;::=---------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+;;; Features:
+;;; * HHGG chord transitions
+;;; * Changes in volume between chords
+;;; * Changes in numbers of notes per chord
+;;; * Play the notes of a single chord with different volumes
+
+(define *vol-trans*
+  '((20 20 20 40 40)
+    (40 20 40 40 50)
+    (50 40 50 50 60)
+    (60 40 50 60 60 70)
+    (70 50 60 60 70 80)
+    (80 60 70 70 80 90)
+    (90 70 80 80 90)))
+
+(define *dynamic-vol-trans*
+  '((20 30 40 50)
+    (30 40 50 60)
+    (40 30 50 60 70)
+    (50 30 40 60 70)
+    (60 40 50 70)
+    (70 50 60 80)
+    (80 60 70)
+    (90 70 80)))
+
+(define play-note
+  (lambda (beat dur note vol)
+    (mplay *midiout*
+           note
+           (markov vol *dynamic-vol-trans*)
+           dur
+           *midi-channel*)))
+
+(define build-chord
+  (lambda (lo hi complexity base-triad)
+    (cond ((> complexity 0.5)
+           (pc:make-chord lo hi *notes-per-chord* base-triad))
+          ((> complexity 0.2)
+           (pc:make-chord lo hi 6 base-triad))
+          ((> complexity 0.1)
+           (pc:make-chord lo hi 3 base-triad))
+          (#t
+           (pc:make-chord lo hi 2 base-triad)))))
+
+(define progression
+  (lambda (beat degree-dur vol)
+    (let* ((degree (car degree-dur))
+           (dur (cadr degree-dur))
+           (tri (triad *key-root* degree))
+           (chord (build-chord *low* *high* (random) tri)))
+      (println 'Degree: degree)
+      (play-chord beat dur chord vol)
+      ;; Get the next transitions:
+      (let* ((next-degree-dur (markov degree-dur *mode-trans*))
+             (next-vol (markov vol *vol-trans*)))
+        ;; Set up the next chunk of the progression to be played
+        (callback (*metro* (+ beat dur))
+                  'progression
+                  (+ beat dur)
+                  next-degree-dur
+                  next-vol)))))
+
+;;;;;::=--------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;::=-   Third Step   -=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;::=--------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+;;; Features:
+;;; * HHGG chord transitions
+;;; * Changes in volume between chords
+;;; * Changes in numbers of notes per chord
+;;; * Play the notes of a single chord with different volumes
+;;; * Add arpeggiation to the bass notes
+;;; * Add syncopation
+
+(define play-arpeggio
+  (lambda (beat max-dur notes note-dur vol total-dur)
+    (let* ((total-dur (+ total-dur note-dur))
+           (next-play (+ beat note-dur))
+           (note (car notes))
+           (tail (cdr notes)))
+      (if (< total-dur max-dur)
+          (begin
+            (play-note beat (* 2 note-dur) note vol)
+            (callback (*metro* next-play)
+                      'play-arpeggio
+                      next-play
+                      max-dur
+                      (append tail (list note))
+                      note-dur
+                      (markov vol *dynamic-vol-trans*)
+                      total-dur))))))
+
+(define progression
+  (lambda (beat degree-dur vol)
+    (let* ((degree (car degree-dur))
+           (dur (cadr degree-dur))
+           (tri (triad *key-root* degree))
+           (chord (build-chord *low* *high* (random) tri)))
+      (println 'Degree: degree)
+      ;; Play the piano's bass notes: if there are just two notes in the chord,
+      ;; just play it as is. If there are three or more notes, possibly
+      ;; arpeggiate the chord
+      (if (< (length chord) 2)
+          (play-chord beat dur chord vol)
+          (if (> (random) 0.3)
+              (play-chord beat dur chord vol)
+              (play-arpeggio beat dur chord 1 vol 0)))
+      ;; Get the next transitions:
+      (let* ((next-degree-dur (markov degree-dur *mode-trans*))
+             (next-vol (markov vol *vol-trans*)))
+        ;; Set up the next chunk of the progression to be played
+        (callback (*metro* (+ beat dur))
+                  'progression
+                  (+ beat dur)
+                  next-degree-dur
+                  next-vol)))))
+
+(define maybe-syncopate
+  (lambda (beat)
+    (if (> (random) 0.25)
+        beat
+        (+ beat 2))))
+
+(define progression
+  (lambda (beat degree-dur vol)
+    (let* ((degree (car degree-dur))
+           (dur (cadr degree-dur))
+           (tri (triad *key-root* degree))
+           (chord (build-chord *low* *high* (random) tri)))
+      (println 'Degree: degree)
+      ;; Play the piano's bass notes: if there are just two notes in the chord,
+      ;; just play it as is. If there are three or more notes, possibly
+      ;; arpeggiate the chord
+      (if (< (length chord) 2)
+          (play-chord chord-beat dur chord vol)
+          (if (> (random) 0.3)
+              (play-chord beat dur chord vol)
+              (play-arpeggio (maybe-syncopate beat) dur chord 1 vol 0)))
+      ;; Get the next transitions:
+      (let* ((next-degree-dur (markov degree-dur *mode-trans*))
+             (next-vol (markov vol *vol-trans*)))
+        ;; Set up the next chunk of the progression to be played
+        (callback (*metro* (+ beat dur))
+                  'progression
+                  (+ beat dur)
+                  next-degree-dur
+                  next-vol)))))
+
+;;;;;::=---------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;::=-   Fourth Step   -=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;::=---------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+;;; Features:
+;;; * HHGG chord transitions
+;;; * Changes in volume between chords
+;;; * Changes in numbers of notes per chord
+;;; * Play the notes of a single chord with different volumes
+;;; * Add arpeggiation to the bass notes
+;;; * Add syncopation
+;;; * Play a simple melody
+
+(define *melody-timings*
+  '((1/2 1/2)
+    (1   1/2)))
+
+(define build-melody
+  (lambda (lo hi melody-type base-triad degree)
+    (if (and (> (random) 0.5) (member degree '(i iv III)))
+        (list f4 eb4 d4 g3 c4 d4 eb4 c4)
+        (pc:make-chord (+ lo 12) (+ hi 12) *notes-per-melody* base-triad))))
+
+(define play-melody
+  (lambda (beat max-dur dur notes vol last-note total-dur)
+    (let* ((total-dur (+ total-dur dur))
+           (next-play (+ beat dur))
+           (note (random notes))
+           (play-type (random)))
+      (if (< total-dur max-dur)
+          (begin
+            (cond
+             ;; play a single random note
+             ((> play-type 0.1)
+              (play-note beat (* dur 2) note vol))
+             ;; play a rest (no note)
+             (#t 'play-rest))
+            (callback (*metro* next-play)
+                      'play-melody
+                      next-play
+                      max-dur
+                      (markov dur *melody-timings*)
+                      notes
+                      (markov vol *vol-trans*)
+                      note
+                      total-dur))))))
+
+(define progression
+  (lambda (beat degree-dur vol)
+    (let* ((vol-mod (sinr 0 1 0.005))
+           (degree (car degree-dur))
+           (dur (cadr degree-dur))
+           (tri (triad *key-root* degree))
+           (chord (build-chord *low* *high* (random) tri))
+           (melody (build-melody *low* *high* (random) tri degree)))
+      (println 'Degree: degree)
+      ;; Play the piano's bass notes: if there are just two notes in the chord,
+      ;; just play it as is. If there are three or more notes, possibly
+      ;; arpeggiate the chord
+      (if (< (length chord) 2)
+          (play-chord chord-beat dur chord vol)
+          (if (> (random) 0.3)
+              (play-chord beat dur chord vol)
+              (play-arpeggio (maybe-syncopate beat) dur chord 1 vol 0)))
+      ;; Play the melody
+      (play-melody beat dur 1 melody vol #f 0)
+      ;; Get the next transitions:
+      (let* ((next-degree-dur (markov degree-dur *mode-trans*))
+             (next-vol (markov vol *vol-trans*)))
+        ;; Set up the next chunk of the progression to be played
+        (callback (*metro* (+ beat dur))
+                  'progression
+                  (+ beat dur)
+                  next-degree-dur
+                  next-vol)))))
+
+;;;;;::=--------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;::=-   Fifth Step   -=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;::=--------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+;;; Features:
+;;; * HHGG chord transitions
+;;; * Changes in volume between chords
+;;; * Changes in numbers of notes per chord
+;;; * Play the notes of a single chord with different volumes
+;;; * Add arpeggiation to the bass notes
+;;; * Add syncopation
+;;; * Play a more complicated melody
+;;; * Less chaos in the timings of the melody notes
+
+(define build-melody
+  (lambda (lo hi melody-type base-triad degree)
+    (cond ((and (> melody-type 0.5) (member degree '(i IV iv III)))
+           (list f4 eb4 d4 g3 c4 d4 eb4 c4 f5 eb5 d5 g4 c5))
+          ((> melody-type 0.5)
+           (pc:make-chord (+ lo 12) (+ hi 12) *notes-per-melody* base-triad))
+          ((> melody-type 0.3)
+           (pc:make-chord (+ lo 24) (+ hi 12) *simpler-melody* base-triad))
+          ((> melody-type 0.1)
+           (pc:make-chord (+ lo 12) (+ hi 0) *simpler-melody* base-triad))
+          ((> melody-type 0.05)
+           (pc:make-chord (+ lo 12) (+ hi 24) *notes-per-melody* base-triad))
+          (#t
+           (pc:make-chord (+ lo 24) (+ hi 36) *notes-per-melody* base-triad)))))
+
+;; XXX skipping this for now
+(define play-triplet
+  (lambda (beat dur triplet vol)
+    (play-arpeggio beat dur triplet (/ dur (length triplet)) vol 0)))
+
+(define play-melody
+  (lambda (beat max-dur dur notes vol last-note total-dur)
+    (let* ((total-dur (+ total-dur dur))
+           (next-play (+ beat dur))
+           (note (random notes))
+           (three-notes (list note (random notes) (random notes)))
+           (play-type (random)))
+      (if (< total-dur max-dur)
+          (begin
+            (cond
+             ;; play a single random note
+             ((> play-type 0.1)
+              (play-note beat (* dur 2) note vol))
+             ;; triplets
+             ;((> play-type 0.1)
+             ; (play-triplet beat dur three-notes vol))
+             ;; play the melody as a chord
+             ((> play-type 0.05)
+              (play-chord (maybe-syncopate beat) dur three-notes vol))
+             ;; play a rest (no note)
+             (#t 'play-rest))
+            (callback (*metro* next-play)
+                      'play-melody
+                      next-play
+                      max-dur
+                      (markov dur *melody-timings*)
+                      notes
+                      (markov vol *vol-trans*)
+                      note
+                      total-dur))))))
+
+(define *melody-timings*
+  '((1/2 1/2 1/2 1)
+    (1   1/2 1   1   1   2)
+    (2   1/2 1   1)))
+
+;;;;;::=--------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;::=-   Sixth Step   -=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;::=--------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+;;; Features:
+;;; * HHGG chord transitions
+;;; * Changes in volume between chords
+;;; * Changes in numbers of notes per chord
+;;; * Play the notes of a single chord with different volumes
+;;; * Add arpeggiation to the bass notes
+;;; * Add syncopation
+;;; * Play a more complicated melody
+;;; * Simplify the timings of the melody notes
+;;; * Slow the piece down
+;;; * Soften the volume
+;;; * Add sustain pedal
+
+(*metro* 'set-tempo 96)
+
+(define *vol-trans*
+  '((20 20 20 40 40)
+    (40 20 40 40 50)
+    (50 40 50 50 60)
+    (60 40 50 60 60 70)
+    (70 50 60 60 70)
+    (80 70)
+    (90 70)))
+
+(define *dynamic-vol-trans*
+  '((20 30 40 50)
+    (30 40 50 60)
+    (40 30 50 60 70)
+    (50 30 40 60 70)
+    (60 40 50 70)
+    (70 50 60 80)
+    (80 70)
+    (90 70)))
+
+;; Release pedal between dissonant modes
+(define *pedal-release-trans*
+  '((III IV)
+    (IV i)
+    (VI i)
+    (VI iv)
+    (i IV)
+    (i VI)
+    (iv IV)))
+
+(define progression
+  (lambda (beat degree-dur vol)
+    (let* ((vol-mod (sinr 0 1 0.005))
+           (degree (car degree-dur))
+           (dur (cadr degree-dur))
+           (tri (triad *key-root* degree))
+           (chord (build-chord *low* *high* (random) tri))
+           (melody (build-melody *low* *high* (random) tri degree)))
+      (println 'Degree: degree)
+      ;; Depress the sustain pedal
+      (send-midi-cc (+ (now) 1) *midiout* *midi-sustain* *midi-on* *midi-channel*)
+      ;; Play the piano's bass notes: if there are just two notes in the chord,
+      ;; just play it as is. If there are three or more notes, possibly
+      ;; arpeggiate the chord
+      (if (< (length chord) 2)
+          (play-chord chord-beat dur chord vol)
+          (if (> (random) 0.3)
+              (play-chord beat dur chord vol)
+              (play-arpeggio (maybe-syncopate beat) dur chord 1 vol 0)))
+      ;; Play the melody
+      (play-melody beat dur 1 melody vol #f 0)
+      ;; Get the next transitions:
+      (let* ((next-degree-dur (markov degree-dur *mode-trans*))
+             (next-vol (markov vol *vol-trans*)))
+        ;; Release the sustain pedal
+        (if (member (list degree (car next-degree-dur)) *pedal-release-trans*)
+            (send-midi-cc (now) *midiout* *midi-sustain* *midi-off* *midi-channel*))
+        ;; Set up the next chunk of the progression to be played
+        (callback (*metro* (+ beat dur))
+                  'progression
+                  (+ beat dur)
+                  next-degree-dur
+                  next-vol)))))
+
+;;;;;::=----------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;::=-   Seventh Step   -=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;::=----------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+;;; Features:
+;;; * HHGG chord transitions
+;;; * Changes in volume between chords
+;;; * Changes in numbers of notes per chord
+;;; * Play the notes of a single chord with different volumes
+;;; * Add arpeggiation to the bass notes
+;;; * Add syncopation
+;;; * Play a more complicated melody
+;;; * Simplify the timings of the melody notes
+;;; * Slow the piece down
+;;; * Add sustain pedal
+;;; * Dissonance!
+
+;; Melody transitions from the HHGG simplified chords
+(define *melody-trans*
+  `((,ab2 ,eb3)
+    (,ab3 ,ab3 ,c3  ,c4  ,f4)
+    (,c3  ,ab3 ,ab2 ,eb3)
+    (,c4  ,c4  ,c5  ,d4  ,eb4)
+    (,c5  ,c4  ,d4)
+    (,d4  ,c4  ,eb4 ,eb4 ,g3)
+    (,eb4 ,d4  ,f4  ,d4  ,ab3)
+    (,f4  ,eb4 ,g4)
+    (,g3  ,c4  ,eb3 ,bb3 ,d3)
+    (,g4  ,eb4 ,bb3 ,d4)))
+
+(define play-melody
+  (lambda (beat max-dur dur notes vol last-note total-dur)
+    (let* ((total-dur (+ total-dur dur))
+           (next-play (+ beat dur))
+           (transition-notes (assoc last-note *melody-trans*))
+           (note (if (eq? transition-notes #f)
+                     (random notes)
+                     (random (cdr transition-notes))))
+           (three-notes (list note (random notes) (random notes)))
+           (play-type (random)))
+      (if (< total-dur max-dur)
+          (begin
+            (cond
+             ;; play a single random note
+             ((> play-type 0.1)
+              (play-note beat dur note vol))
+             ;; triplets
+             ;((> play-type 0.3)
+             ; (for-each
+             ;  (lambda (n)
+             ;    (play-note beat (/ dur 3) n vol))
+             ;  three-notes))
+             ;; play the melody as a chord
+             ((> play-type 0.05)
+              (play-chord (maybe-syncopate beat) dur three-notes vol))
+             ;; play a rest (no note)
+             (#t 'play-rest))
+            (callback (*metro* next-play)
+                      'play-melody
+                      next-play
+                      max-dur
+                      (markov dur *melody-timings*)
+                      notes
+                      (markov vol *vol-trans*)
+                      note
+                      total-dur))))))
+
+;;;;;::=--------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;::=-   Final Step   -=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;::=--------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+;;; Features:
+;;; * HHGG chord transitions
+;;; * Changes in volume between chords
+;;; * Changes in numbers of notes per chord
+;;; * Play the notes of a single chord with different volumes
+;;; * Add arpeggiation to the bass notes
+;;; * Add syncopation
+;;; * Play a more complicated melody
+;;; * Simplify the timings of the melody notes
+;;; * Slow the piece down
+;;; * Add sustain pedal
+;;; * Dissonance!
+;;; * Reverb :-D
+;;; * Reduce dissonancne, volume levels
+;;; * Lengthen times and reduce number of chords
+;;; * Slow tempo some more
+;;; * Stop progression
+
+(define *vol-trans*
+  '((20 20 20 40 40)
+    (40 20 40 40 50)
+    (50 40 50 50)
+    (60 50)
+    (70 50)
+    (80 50)
+    (90 50)))
+
+(define *dynamic-vol-trans*
+  '((20 30 40 50)
+    (30 40 50)
+    (40 30 50)
+    (50 30 50 40)
+    (60 50)
+    (70 50)
+    (80 50)
+    (90 50)))
+
+(define progression
+  (lambda (beat degree-dur vol)
+    (let* ((vol-mod (sinr 0 1 0.005))
+           (degree (car degree-dur))
+           (dur (cadr degree-dur))
+           (tri (triad key-root degree))
+           (chord (build-chord *low* *high* (random) tri))
+           (melody (build-melody *low* *high* (random) tri degree))
+      (println 'Degree: degree)
+      ;; Depress the sustain pedal
+      (send-midi-cc (+ (now) 1) *midiout* *midi-sustain* *midi-on* *midi-channel*)
+      ;; Play the piano's bass notes, potentially arpeggiating
+      (play-chord beat dur chord vol)
+      ;; Play the melody
+      (play-melody beat dur 1 melody vol #f 0)
+      ;; Get the next transitions:
+      (let* ((next-degree-dur (markov degree-dur *mode-trans*))
+             (next-vol (markov vol *vol-trans*)))
+        ;; Release the sustain pedal
+        (if (member (list degree (car next-degree-dur)) *pedal-release-trans*)
+            (send-midi-cc (now) *midiout* *midi-sustain* 50 *midi-channel*))
+        ;; Set up the next chunk of the progression to be played
+        (callback (*metro* (+ beat dur))
+                  'progression
+                  (+ beat dur)
+                  next-degree-dur
+                  next-vol)))))
+
+(*metro* 'set-tempo 84)
+
+(define *melody-timings*
+  '((1/2 1)
+    (1   1   1   1   2   2)
+    (2   1   1)))
+
+(define *mode-trans*
+  '(((I   2)  (iv  4))
+    ((I   6)  (iv  6))
+    ((III 1)  (iv  5)  (i 5))
+    ((III 3)  (i   3)  (V 3))
+    ((IV  4)  (VI  6)  (VI 6) (i 6) (i 6) (i 6) (i 6) (i 6) (i 6))
+    ((IV  5)  (VI  6))
+    ((IV  6)  (VI  6))
+    ((V   3)  (iv  6))
+    ((VI  6)  (i   6))
+    ((VI  6)  (III 1)  (iv 6))
+    ((i   12) (VI  6))
+    ((i   3)  (iv  6) (III 3))
+    ((i   6)  (III 1)  (VI 6) (VI 6) (VI 6) (VI 6) (VI 6))
+    ((i   5)  (VI  6))
+    ((iv  4)  (VI  6))
+    ((iv  5)  (VI  6))
+    ((iv  6)  (VI  6))))
+
+(define *mode-trans*
+  '(((I   2)  (i 6))
+    ((I   6)  (i 6))
+    ((III 1)  (i 6))
+    ((III 3)  (i 6))
+    ((IV  4)  (i 6))
+    ((IV  5)  (i 6))
+    ((IV  6)  (i 6))
+    ((V   3)  (i 6))
+    ((VI  6)  (i 6))
+    ((VI  6)  (i 6))
+    ((i   12) (i 6))
+    ((i   3)  (i 6))
+    ((i   6)  (i 6))
+    ((i   5)  (i 6))
+    ((iv  4)  (i 6))
+    ((iv  5)  (i 6))
+    ((iv  6)  (i 6))))
+
+(define *mode-trans*
+  '(((i 6) (iv 6))))
+
+;; Stop the progression
+(define progression
+  (lambda (beat degree-dur vol) #t))

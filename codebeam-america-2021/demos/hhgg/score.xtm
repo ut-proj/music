@@ -7,8 +7,8 @@
 ;;;;
 ;;;; * TBD
 
-;;; Chord progression for Journey of the Sorcerer (theme for the Hitchhiker's
-;;; Guide to the Galaxy):
+;;; Simplified chord progression for Journey of the Sorcerer (theme for the
+;;; Hitchhiker's Guide to the Galaxy):
 ;;;
 ;;; Key: Cm
 ;;;
@@ -166,8 +166,6 @@
 (define pedal-release-trans
   '((III IV)
     (IV i)
-    (IVo IV)
-    (VI IVo)
     (VI i)
     (i IV)
     (i VI)
