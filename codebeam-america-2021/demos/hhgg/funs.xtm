@@ -36,3 +36,5 @@
     (for-each (lambda (note)
                 (play-note beat dur note vol))
               chord)))
+
+(println 'Loaded 'common 'functions 'for 'demo.)

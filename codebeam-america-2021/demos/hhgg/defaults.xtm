@@ -1,5 +1,6 @@
 (define *midi-channel* 0) ; MIDI channel 1
 (define *midi-off* 0)
+(define *midi-semi-off* 50) ; for use with pedal muting
 (define *midi-on* 127)
 (define *midi-sustain* 64)
 
@@ -25,3 +26,5 @@
 
 (define *initial-volume* 50)
 (define *initial-degree-duration* '(i 12))
+
+(println 'Loaded 'defaults 'for 'demo.)

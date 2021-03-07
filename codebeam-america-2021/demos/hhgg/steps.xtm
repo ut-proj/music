@@ -137,29 +137,37 @@
 
 (clear)
 (undertone.repl.extempore:start)
+(list-midi)
 
-;;;;;::=-----------------------------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;::=-   Setup from Extempore & LFE both   -=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;;;::=-----------------------------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define base-dir "/Users/oubiwann/lab/lfe/undertone-presentations/")
+(define demo-dir (string-append base-dir "codebeam-america-2021/demos/"))
+
+(sys:load (string-append demo-dir "hhgg/defaults.xtm"))
+(sys:load (string-append demo-dir "hhgg/funs.xtm"))
+
+;;;;;::=------------------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;::=-   Setup from Extempore   -=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;::=------------------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define base-dir "/Users/oubiwann/lab/lfe/undertone-presentations/")
 (define demo-dir (string-append base-dir "codebeam-america-2021/demos/"))
 
 (sys:load (string-append demo-dir "init.xtm"))
-(sys:load (string-append demo-dir "hhgg/defaults.xtm"))
-(sys:load (string-append demo-dir "hhgg/funs.xtm"))
-
 (begin (pm_print_devices) (println))
 
-;; Setup Piano
-(define *primary-midi-device-id* 2) ; MIDI device -> DAW/Ravenscroft Piano
-(define *midiout* (pm_create_output_stream *primary-midi-device-id*))
-
-(*metro* 'set-tempo 108)
+(sys:load (string-append demo-dir "hhgg/defaults.xtm"))
+(sys:load (string-append demo-dir "hhgg/funs.xtm"))
 
 ;;;;;::=-----------------------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;::=-   Definitions for All Steps   -=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;::=-----------------------------=::;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; Setup Piano
+(define *primary-midi-device-id* 2) ; MIDI device -> DAW/Ravenscroft Piano
+(define *midiout* (pm_create_output_stream *primary-midi-device-id*))
+(send-midi-cc (now) *midiout* *midi-sustain* *midi-off* *midi-channel*)
+
+(*metro* 'set-tempo 108)
 
 ;; Allowed degree transitions, based upon the background analysis above:
 
@@ -321,7 +329,7 @@
                       max-dur
                       (append tail (list note))
                       note-dur
-                      (markov vol *dynamic-vol-trans*)
+                      (markov vol *vol-trans*)
                       total-dur))))))
 
 (define progression
@@ -602,7 +610,7 @@
              (next-vol (markov vol *vol-trans*)))
         ;; Release the sustain pedal
         (if (member (list degree (car next-degree-dur)) *pedal-release-trans*)
-            (send-midi-cc (now) *midiout* *midi-sustain* *midi-off* *midi-channel*))
+            (send-midi-cc (now) *midiout* *midi-sustain* *midi-semi-off* *midi-channel*))
         ;; Set up the next chunk of the progression to be played
         (callback (*metro* (+ beat dur))
                   'progression
@@ -723,9 +731,9 @@
     (let* ((vol-mod (sinr 0 1 0.005))
            (degree (car degree-dur))
            (dur (cadr degree-dur))
-           (tri (triad key-root degree))
+           (tri (triad *key-root* degree))
            (chord (build-chord *low* *high* (random) tri))
-           (melody (build-melody *low* *high* (random) tri degree))
+           (melody (build-melody *low* *high* (random) tri degree)))
       (println 'Degree: degree)
       ;; Depress the sustain pedal
       (send-midi-cc (+ (now) 1) *midiout* *midi-sustain* *midi-on* *midi-channel*)
@@ -738,7 +746,7 @@
              (next-vol (markov vol *vol-trans*)))
         ;; Release the sustain pedal
         (if (member (list degree (car next-degree-dur)) *pedal-release-trans*)
-            (send-midi-cc (now) *midiout* *midi-sustain* 50 *midi-channel*))
+            (send-midi-cc (now) *midiout* *midi-sustain* *midi-semi-off* *midi-channel*))
         ;; Set up the next chunk of the progression to be played
         (callback (*metro* (+ beat dur))
                   'progression
