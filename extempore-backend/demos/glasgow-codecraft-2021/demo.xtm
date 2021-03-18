@@ -17,7 +17,7 @@
 (make-instrument synth fmsynth)
 (make-instrument asynth analogue)
 
-;; add the instrument to the DSP output sink closure
+;; add the instruments to the DSP output sink closure
 (bind-func dsp:DSP
   (lambda (in time chan dat)
     (+ (synth in time chan dat)
@@ -173,7 +173,7 @@
 (define *midi-channel* 0)
 
 (define *mode* minor)
-
+(define *notes-per-chord* 3)
 (define *vol-trans*
   (list (list *default-vol* *default-vol*)))
 
@@ -210,16 +210,16 @@
 (define *scale* (pc:scale *key* 'harmonic))
 (define *octave* 12)
 
-(define cell1 (list (list 0 0)
-                    (list 5/2 1/2)))
+(define cell1 '((0 0)
+                (5/2 1/2)))
 
 (define play-cell
   (lambda (beat note cell)
-    (let ((octave-multiplier (random (car cell)))
-          (melody (pc:make-chord-fixed note
-                                       *notes-per-chord*
-                                       *scale*))
-          (dur (random (cadr cell))))
+    (let* ((octave-bump (random (car cell)))
+           (melody (pc:make-chord-fixed (+ note octave-bump)
+                                        *notes-per-chord*
+                                        *scale*))
+           (dur (random (cadr cell))))
       (play-arpeggio beat 3 melody dur *default-vol* 0))))
 
 (define model3
@@ -235,8 +235,8 @@
                 3
                 (random (cdr (assoc degree *transitions*))))))
 
-(define cell2 (list (list -2 1 1)
-                    (list 1 1 1)))
+(define cell2 '((-2 1 1)
+                (1 1 1)))
 
 (define cells (list cell1 cell2))
 
@@ -253,8 +253,8 @@
                 3
                 (random (cdr (assoc degree *transitions*))))))
 
-(define cell3 (list (list 0 1)
-                    (list 3/2 3/2)))
+(define cell3 '((0 1)
+                (3/2 3/2)))
 
 (define cells (list cell1 cell2 cell3))
 
@@ -268,12 +268,12 @@
 
 (define play-cell
   (lambda (beat note cell)
-    (let ((octave-multiplier (random (car cell)))
-          (melody (pc:make-chord-fixed note
-                                       *notes-per-chord*
-                                       *scale*))
-          (xformer (random (list identity inverter)))
-          (dur (random (cadr cell))))
+    (let* ((octave-bump (random (car cell)))
+           (melody (pc:make-chord-fixed (+ octave-bump note)
+                                        *notes-per-chord*
+                                        *scale*))
+           (xformer (random (list identity inverter)))
+           (dur (random (cadr cell))))
       (play-arpeggio beat 3 (xformer melody) dur *default-vol* 0))))
 
 (define model3)
