@@ -1,0 +1,31 @@
+;;;; Convenience functions for MIDI
+
+(define play-midi
+  (lambda (beat dur note vol)
+    (mplay *midiout*
+           note
+           vol
+           dur
+           *midi-channel*)))
+
+(define play-arpeggio
+  (lambda (beat max-dur notes note-dur vol total-dur)
+    (let* ((total-dur (+ total-dur note-dur))
+           (next-play (+ beat note-dur))
+           (note (car notes))
+           (tail (cdr notes)))
+      (if (<= total-dur max-dur)
+          (begin
+            (play-midi beat (* 2 note-dur) note vol)
+            (callback (*metro* next-play)
+                      'play-arpeggio
+                      next-play
+                      max-dur
+                      (append tail (list note))
+                      note-dur
+                      (random (cdr (assoc vol *vol-trans*)))
+                      total-dur))))))
+
+(define auxilary-functions-loaded
+  (lambda ()
+    "End-of-file placeholder."))

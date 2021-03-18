@@ -1,4 +1,4 @@
-;;;; A demo / casual workshop for the Glasgow CodeCraft meetup
+;;;; A demo / casual "workshop" for the Glasgow CodeCraft meetup
 ;;;;
 ;;;; This code was adapted from the talk that Andrew Sorensen gave at
 ;;;; Codemania 2015: "A Programmers's Guide to Western Music"
@@ -11,6 +11,7 @@
 ;;(define prefix "/Users/dmcgreggor/lab/lfe/undertone-music/extempore-backend/")
 
 (sys:load (string-append prefix "demos/glasgow-codecraft-2021/init.xtm"))
+(sys:load (string-append prefix "demos/glasgow-codecraft-2021/funs.xtm"))
 
 ;; define a synth using the provided component fmsynth
 (make-instrument synth fmsynth)
@@ -26,7 +27,7 @@
 
 ;;; Sound Check!
 ;;;
-;;; Create a function to play a note .. then play it :-)
+;;; Create a function to play a note ... then play it :-)
 
 (define *default-vol* 80)
 
@@ -159,63 +160,22 @@
 ;;; Model 3
 ;;;
 ;;; 1800 A.D., Black Adder Series 3 - arpeggios, melody, and syncopation
+;;;
+;;; We're going to switch to MIDI for this, so I can use a beautiful sampled
+;;; piano VST plugin
 
-(define *notes-per-chord* 3)
-(define *mode* minor)
-
-(define model3
-  (lambda (beat dur degree)
-    (let ((chrd (pc:make-chord-fixed c4
-                                     *notes-per-chord*
-                                     (pc:diatonic *key* *mode* degree))))
-      (map (lambda (p o)
-             (play-note (+ (now) (* o *second*)) synth p *default-vol* (* dur *second*)))
-           chrd
-           (range 0 3)))
-      (callback (*metro* (+ beat (* 0.5 dur)))
-                'model3
-                (+ beat dur)
-                3
-                (random (cdr (assoc degree *transitions*))))))
-
-(model3 (*metro* 'get-beat 4) 3 'i)
-
-;; MIDI version for sampled piano VST plugin
-
+;; List our MIDI devices
 (begin (pm_print_devices) (println))
 
+;; Select the right one and define some constants
 (define primary-midi-device-id 3)
 (define *midiout* (pm_create_output_stream primary-midi-device-id))
 (define *midi-channel* 0)
 
-(define play-note
-  (lambda (beat dur note vol)
-    (mplay *midiout*
-           note
-           vol
-           dur
-           *midi-channel*)))
+(define *mode* minor)
 
 (define *vol-trans*
   (list (list *default-vol* *default-vol*)))
-
-(define play-arpeggio
-  (lambda (beat max-dur notes note-dur vol total-dur)
-    (let* ((total-dur (+ total-dur note-dur))
-           (next-play (+ beat note-dur))
-           (note (car notes))
-           (tail (cdr notes)))
-      (if (<= total-dur max-dur)
-          (begin
-            (play-note beat (* 2 note-dur) note vol)
-            (callback (*metro* next-play)
-                      'play-arpeggio
-                      next-play
-                      max-dur
-                      (append tail (list note))
-                      note-dur
-                      (random (cdr (assoc vol *vol-trans*)))
-                      total-dur))))))
 
 (define model3
   (lambda (beat dur degree)
@@ -255,11 +215,11 @@
 
 (define play-cell
   (lambda (beat note cell)
-    (let ((octave-multiplier (random (cdr (car cell))))
+    (let ((octave-multiplier (random (car cell)))
           (melody (pc:make-chord-fixed note
                                        *notes-per-chord*
                                        *scale*))
-          (dur (random (cdr (cadr cell)))))
+          (dur (random (cadr cell))))
       (play-arpeggio beat 3 melody dur *default-vol* 0))))
 
 (define model3
@@ -298,8 +258,6 @@
 
 (define cells (list cell1 cell2 cell3))
 
-(println (pc:invert (pc:make-chord-fixed c0 *notes-per-chord* *scale*) *scale*))
-
 (define identity
   (lambda (lst)
     lst))
@@ -310,13 +268,15 @@
 
 (define play-cell
   (lambda (beat note cell)
-    (let ((octave-multiplier (random (cdr (car cell))))
+    (let ((octave-multiplier (random (car cell)))
           (melody (pc:make-chord-fixed note
                                        *notes-per-chord*
                                        *scale*))
           (xformer (random (list identity inverter)))
-          (dur (random (cdr (cadr cell)))))
+          (dur (random (cadr cell))))
       (play-arpeggio beat 3 (xformer melody) dur *default-vol* 0))))
+
+(define model3)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
@@ -348,6 +308,8 @@
                 3)))
 
 (model4 (*metro* 'get-beat 4) 3)
+
+(define model4)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
