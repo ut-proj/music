@@ -1,0 +1,11 @@
+;;;; Setup / initialization for MIDI, etc.
+;;;;
+(sys:load "libs/core/instruments.xtm")
+(sys:load "libs/external/portmidi.xtm")
+(sys:load "libs/core/pattern-language.xtm")
+
+(pm_initialize)
+
+(define initialised
+  (lambda ()
+    "End-of-file placeholder."))
