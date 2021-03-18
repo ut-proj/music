@@ -3,8 +3,20 @@
 ;;;; This code was adapted from the talk that Andrew Sorensen gave at
 ;;;; Codemania 2015: "A Programmers's Guide to Western Music"
 
-;;; Extempore 
-
+;;; Extempore Installation
+;;;
+;;; Download for your platform from: 
+;;; * https://github.com/digego/extempore/releases/tag/v0.8.8
+;;;
+;;; Decompress and install to your preferred location. For example,
+;;; my latest version of Extempore is saved to /opt/extempore/8.8.0.
+;;;
+;;; Starting Extempore
+;;;
+;;; To help keeping the timings consistent, especially when creating
+;;; music with sequences, a la Berlin School, you'll want to reduce
+;;; the framerate. I've found 64 is a great default for this which
+;;; keeps all the sequences playing nicely in time.
 
 ;;; Extempore Music Preparation
 
