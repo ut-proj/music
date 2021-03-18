@@ -12,7 +12,7 @@
 1. Copy the contents to a location of your choice
 
 To that last point, my latest version of Extempore is saved to
-`/opt/extempore/8.8.0`.
+`/opt/extempore/0.8.8`.
 
 ### Setting up an Editor
 
@@ -40,9 +40,9 @@ Then open that up in Emacs or VS Code.
 Suggested options:
 
 ``` shell
-cd /opt/extempore/8.8.0
+cd /opt/extempore/0.8.8
 ./extempore \
-  --sharedir=/opt/extempore/8.8.0 \
+  --sharedir=/opt/extempore/0.8.8 \
   --port=7099 \
   --samplerate=48000 \
   --frames=64
