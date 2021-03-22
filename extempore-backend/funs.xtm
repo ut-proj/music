@@ -1,0 +1,184 @@
+;;; Move the following into a pitch file in the undertone project
+
+(define triad
+  (lambda (root name)
+    (cond ((eq? name 'I) (pc:diatonic root *major* 'i))
+          ((eq? name 'i) (pc:diatonic root *minor* 'i))
+          ((eq? name 'III) (pc:diatonic root *major* 'iii))
+          ((eq? name 'IV) (pc:diatonic root *major* 'iv))
+          ((eq? name 'IVo) (ivl:transpose (car (pc:diatonic root major 'iv)) '(0 3 6)))
+          ((eq? name 'iv) (pc:diatonic root *minor* 'iv))
+          ((eq? name 'V) (pc:diatonic root *major* 'v))
+          ((eq? name 'VI) (pc:diatonic root *major* 'vi))
+          ((eq? name 'vi) (pc:diatonic root *minor* 'vi)))))
+
+(define *ut:chord-patterns*
+   '((^        . (0 4 7))
+     (7        . (0 4 7 10))
+     (9        . (0 4 7 10 2))
+     (^9       . (0 4 7 11 2))
+     (^maj9    . (0 4 7 11 14))
+     (^7#4     . (0 4 7 11 6))
+     (^add11   . (0 4 7 17))
+     (^sus2    . (0 2 7))
+     (^sus2#11 . (0 2 7 6))
+     (^sus     . (0 5 7))
+     (^sus4    . (0 5 7))
+     (^6       . (4 7 0))
+     (^64      . (7 0 4))
+     (^7       . (0 4 7 11))
+     (^65      . (4 7 11 0))
+     (^43      . (7 11 0 4))
+     (^42      . (11 0 4 7))
+     (^2       . (11 0 4 7))
+     (65       . (4 7 10 0))
+     (43       . (7 10 0 4))
+     (2        . (10 0 4 7))
+     (42       . (10 0 4 7))
+     (-        . (0 3 7))
+     (-add11   . (0 3 7 17))
+     (-sus2    . (0 2 7))
+     (-sus2#11 . (0 2 7 6))
+     (-sus     . (0 5 7))
+     (-sus4    . (0 5 7))
+     (-6       . (3 7 0))
+     (-64      . (7 0 3))
+     (-7       . (0 3 7 10))
+     (-65      . (3 7 10 0))
+     (-43      . (7 10 0 3))
+     (-42      . (10 0 3 7))
+     (-2       . (10 0 3 7))
+     (-9       . (0 3 7 10 2))
+     (o        . (0 3 6))
+     (o6       . (3 6 0))
+     (o64      . (6 0 3))
+     (o7       . (0 3 6 8))
+     (o65      . (3 6 8 0))
+     (o43      . (6 8 0 3))
+     (o42      . (8 0 3 6))
+     (o2       . (8 0 3 6))
+     (-7b5     . (0 3 6 9))))
+
+;; returns a chord given a root and type
+;; see chord-patterns for currently available types
+;;
+;; e.g. (ut:chord 0 '^7)  => '(0 4 7 11)
+(define ut:chord
+  (lambda (root type)
+      (let ((chord (assoc type *ut:chord-patterns*)))
+         (if chord
+             (let loop ((l (cdr chord))
+                        (newlst '()))
+                (if (null? l)
+                    (reverse newlst)
+                    (loop (cdr l) (cons (modulo (+ (car l) root) 12) newlst))))
+             (begin (log-info "Chord type not found." type) #f)))))
+
+;;; Move the following into a language file in the undertone project
+
+(define uniq
+  (lambda (lst)
+    (cond ((null? lst)
+           '())
+          ((member (car lst) (cdr lst))
+           (uniq (cdr lst)))
+          (else
+           (cons (car lst) (uniq (cdr lst)))))))
+
+(define drop
+  (lambda (n xs)
+    (if (or (= n 0) (equal? '() xs))
+        xs
+        (drop (- n 1) (cdr xs)))))
+
+(define every-nth
+  (lambda ( n xs)
+    (if (equal? '() xs)
+        '()
+        (cons (car xs)
+              (every-nth n (drop n xs))))))
+
+(define partition
+  (lambda (n lst)
+    (if (equal? '() lst)
+        '()
+        (cons (take n lst) (partition n (drop n lst))))))
+
+(define assoc-del
+  (lambda (del-key assoc-list)
+    (foldl (lambda (acc x)
+             (if (not (eq? (car x) del-key))
+                 (cons x acc)))
+           '()
+           assoc-list)))
+
+(define assoc-upd
+  (lambda (key val assoc-list)
+    (cons (list key val) (assoc-del key assoc-list))))
+
+(define assoc-sel
+  (lambda (key assoc-list)
+    (cdr (assoc key assoc-list))))
+
+(define markov-sel
+  (lambda (current allowed)
+    (random (assoc-sel current allowed))))
+
+(define int-char-shift
+  (lambda (int)
+    (cond ((<= int 9)
+           (+ int 48))
+          ((<= int 35)
+           (+ int 87))
+          ((>= int 36)
+           (+ int 29)))))
+
+(define ->base
+  (lambda (n base)
+    (define base-rec
+      (lambda (acc n base)
+        (if (> n 0)
+            (let ((acc (cons (modulo n base) acc)))
+              (base-rec acc
+                        (quotient n base)
+                        base))
+              (list->string (map (lambda (x) (integer->char (int-char-shift x))) acc)))))
+    (base-rec '() n base)))
+
+;;; Move the following into a midi file in the undertone project
+
+(define play-midi
+  (lambda (beat dur note vol)
+    (mplay *midiout*
+           note
+           vol
+           dur
+           *midi-channel*)))
+
+(define play-note play-midi)
+
+(define play-chord
+  (lambda (beat dur chord vol)
+    (for-each (lambda (note)
+                (play-midi beat dur note vol))
+              chord)))
+
+(define play-arpeggio
+  (lambda (beat max-dur notes note-dur vol total-dur)
+    (let* ((total-dur (+ total-dur note-dur))
+           (next-play (+ beat note-dur))
+           (note (car notes))
+           (tail (cdr notes)))
+      (if (<= total-dur max-dur)
+          (begin
+            (play-midi beat (* 2 note-dur) note vol)
+            (callback (*metro* next-play)
+                      'play-arpeggio
+                      next-play
+                      max-dur
+                      (append tail (list note))
+                      note-dur
+                      (random (cdr (assoc vol *vol-trans*)))
+                      total-dur))))))
+
+(println 'Loaded 'common 'functions 'for 'demo.)
