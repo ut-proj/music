@@ -1,0 +1,294 @@
+;;;; A piano piece, sequel to the piano piece recorded here
+;;;; (performed / recorded with undertone):
+;;;; * https://soundcloud.com/oubiwann/journey-of-the-source-variation-3
+
+;;; Extempore Music Preparation
+;;;
+;;; Let's set up the system in preparation for making music:
+
+;;(define prefix "/Users/oubiwann/lab/lfe/undertone-music/extempore-backend/")
+(define prefix "/Users/dmcgreggor/lab/lfe/undertone-music/extempore-backend/")
+
+(sys:load (string-append prefix "init.xtm"))
+(sys:load (string-append prefix "funs.xtm"))
+
+(*metro* 'set-tempo 68)
+
+(define *default-vol* 80)
+(define *scale* (pc:scale c1 'aeolian))
+(define initial-pitch c7)
+(define initial-step 0)
+(define initial-dur 4)
+(begin (pm_print_devices) (println))
+
+;; Select the right one and define some constants
+(define primary-midi-device-id 4)
+(define *midiout* (pm_create_output_stream primary-midi-device-id))
+(define *midi-channel* 0)
+
+(define *midi-off* 0)
+(define *midi-semi-off* 50) ; for use with pedal muting
+(define *midi-on* 127)
+(define *midi-sustain* 64)
+
+(send-midi-cc (now) *midiout* *midi-sustain* *midi-off* *midi-channel*)
+
+(define minor '-)
+(define major '^)
+(define *mode* minor)
+(define *beats-per-measure* 3)
+
+;; Voice 1 is the bass
+(define *v1-npc* 5)
+
+;; Voice 2 is the low harmony
+(define *v2-npc* 5)
+
+;; Voice 3 is the melody
+(define *v3-npc* 3)
+
+(define *vol-trans*
+  '((30 30 30 40 40)
+    (40 30 40 40 50)
+    (50 40 50 50 60)
+    (60 40 50 60 60 70)
+    (70 50 60 60 70 80)
+    (80 60 70 70 80 90)
+    (90 70 80 80 90 100)
+    (100 80 90 100 110)
+    (110 90 100 110)))
+
+(define *transitions* '((i i v)
+                        (iv i)
+                        (v i v)
+                        (vi i)))
+
+(define *transitions* '((i i iv)
+                        (iv i iv)
+                        (v i iv)
+                        (vi i)))
+
+(define *transitions* '((i i i iv v vi)
+                        (iv i iv)
+                        (v i v)
+                        (vi iv vi)))
+
+(define *transitions* '((i i i iv n6 v vi viio)
+                        (iv i iv)
+                        (n6 viio i)
+                        (v i v)
+                        (vi iv vi)
+                        (viio i)))
+
+
+(define *transitions* '((i ii)
+                        (ii n6)
+                        (n6 viio6)
+                        (viio6 i)))
+
+
+(define *transitions* '((i ii)
+                        (ii n6)
+                        (n6 viio7)
+                        (viio7 i)))
+
+(define *transitions* '((i iii)
+                        (iii iv7)
+                        (iv7 viio7)
+                        (viio7 n6)
+                        (n6 i)))
+
+;; This one was GREAT with the electric guitar ... it's going to enter the regular
+;; jam session line up :-)
+(define *transitions* '((i i64)
+                        (i64 iii)
+                        (iii v)
+                        (v viio)
+                        (viio i)))
+
+
+(define model3
+  (lambda (beat dur degree vol)
+    ;; Depress the sustain pedal
+    (println 'degree '= degree)
+    (send-midi-cc (+ (now) 1) *midiout* *midi-sustain* *midi-on* *midi-channel*)
+    (let ((chrd (uniq (pc:make-chord c3
+                                     c5
+                                     *notes-per-melody-chord*
+                                     (pc:diatonic *key* *mode* degree))))
+          (bass-chrd (uniq (pc:make-chord c2
+                                          c4
+                                          *notes-per-chord*
+                                          (pc:diatonic *key* *mode* degree)))))
+      (play-arpeggio beat *beats-per-measure* chrd 1 vol 0)
+      (play-chord-sustain beat *beats-per-measure* bass-chrd (markov-sel vol *vol-trans*)))
+      (callback (*metro* (+ beat (* 0.5 dur)))
+                'model3
+                (+ beat dur)
+                *beats-per-measure*
+                (markov-sel degree *transitions*)
+                (markov-sel vol *vol-trans*))))
+
+(model3 (*metro* 'get-beat 4) *beats-per-measure* 'i *default-vol*)
+
+(define *scale* (pc:scale *key* 'harmonic))
+(define *notes-per-melody-chord* 3)
+(define *octave* 12)
+
+(define cell1 '((0 0)
+                (5/2 1/2)))
+
+(define play-cell
+  (lambda (beat note cell vol)
+    (let* ((octave-bump (random (car cell)))
+           (melody (pc:make-chord-fixed (+ note octave-bump)
+                                        *notes-per-melody-chord*
+                                        *scale*))
+           (dur (random (cadr cell))))
+      (play-arpeggio beat 3 melody dur (markov-sel vol *vol-trans*) 0))))
+
+(define model3
+  (lambda (beat dur degree vol)
+    ;; Depress the sustain pedal
+    (send-midi-cc (+ (now) 1) *midiout* *midi-sustain* *midi-on* *midi-channel*)
+    (let ((chrd (uniq (pc:make-chord c3
+                                     c5
+                                     *notes-per-melody-chord*
+                                     (pc:diatonic *key* *mode* degree))))
+          (bass-chrd (uniq (pc:make-chord c2
+                                          c4
+                                          *notes-per-chord*
+                                          (pc:diatonic *key* *mode* degree)))))
+      (play-arpeggio beat *beats-per-measure* chrd 1 vol 0)
+      (play-chord-sustain beat *beats-per-measure* bass-chrd (markov-sel vol *vol-trans*))
+      (play-cell beat
+                 (+ *octave* (random chrd))
+                 cell1
+                 (markov-sel vol *vol-trans*)))
+    (callback (*metro* (+ beat (* 0.5 dur)))
+              'model3
+              (+ beat dur)
+              *beats-per-measure*
+              (markov-sel degree *transitions*)
+              (markov-sel vol *vol-trans*))))
+
+(define cell2 '((-2 1 1)
+                (1 1 1)))
+
+(define cells (list cell1 cell2))
+
+(define model3
+  (lambda (beat dur degree)
+    (let ((chrd (pc:make-chord-fixed c4
+                                     *notes-per-chord*
+                                     (pc:diatonic *key* *mode* degree))))
+      (play-cell beat (+ *octave* (random chrd)) (random cells))
+      (play-arpeggio beat *beats-per-measure* chrd 1 *default-vol* 0))
+      (callback (*metro* (+ beat (* 0.5 dur)))
+                'model3
+                (+ beat dur)
+                *beats-per-measure*
+                (random (cdr (assoc degree *transitions*))))))
+
+
+(define model3
+  (lambda (beat dur degree vol)
+    ;; Depress the sustain pedal
+    (send-midi-cc (+ (now) 1) *midiout* *midi-sustain* *midi-on* *midi-channel*)
+    (let ((chrd (uniq (pc:make-chord c3
+                                     c5
+                                     *notes-per-melody-chord*
+                                     (pc:diatonic *key* *mode* degree))))
+          (bass-chrd (uniq (pc:make-chord c2
+                                          c4
+                                          *notes-per-chord*
+                                          (pc:diatonic *key* *mode* degree)))))
+      (play-arpeggio beat *beats-per-measure* chrd 1 vol 0)
+      (play-chord-sustain beat *beats-per-measure* bass-chrd (markov-sel vol *vol-trans*))
+      (play-cell beat
+                 (+ *octave* (random chrd))
+                 (random cells)
+                 (markov-sel vol *vol-trans*)))
+    (callback (*metro* (+ beat (* 0.5 dur)))
+              'model3
+              (+ beat dur)
+              *beats-per-measure*
+              (markov-sel degree *transitions*)
+              (markov-sel vol *vol-trans*))))
+
+(define cell3 '((0 1)
+                (3/2 3/2)))
+
+(define cells (cons cell3 cells))
+
+(define identity
+  (lambda (lst)
+    lst))
+
+(define inverter
+  (lambda (lst)
+    (pc:invert lst *scale*)))
+
+(define higher
+  (lambda (lst)
+    (map (lambda (x) (+ *octave* x)) lst)))
+
+(define play-cell
+  (lambda (beat note notes-per-chord cell vol)
+    (let* ((octave-bump (random (car cell)))
+           (notes (pc:make-chord-fixed (+ note octave-bump)
+                                       notes-per-chord
+                                       *scale*))
+           (xform (random (list identity
+                                inverter
+                                inverter
+                                jumble
+                                jumble
+                                jumble)))
+           (dur (random (cadr cell))))
+      (play-arpeggio beat
+                     *beats-per-measure*
+                     (xform notes)
+                     dur
+                     (markov-sel vol *vol-trans*)
+                     0))))
+
+(define *scale* (pc:scale *key* 'harmonic))
+(define *scale* (pc:scale *key* 'aeolian))
+(define *scale* (pc:scale eb1 'ionian))
+
+(define model3
+  (lambda (beat dur degree vol)
+    ;; Depress the sustain pedal
+    (send-midi-cc (+ (now) 1) *midiout* *midi-sustain* *midi-on* *midi-channel*)
+    (let ((chrd (uniq (pc:make-chord c3
+                                     c5
+                                     *notes-per-melody-chord*
+                                     (pc:diatonic *key* *mode* degree))))
+          (bass-chrd (uniq (pc:make-chord c2
+                                          c4
+                                          *notes-per-chord*
+                                          (pc:diatonic *key* *mode* degree))))
+          (xform (random (list identity inverter jumble jumble))))
+      (play-arpeggio beat *beats-per-measure* (xform chrd) 1 vol 0)
+      (play-chord-sustain beat *beats-per-measure* bass-chrd (markov-sel vol *vol-trans*))
+      (play-cell beat
+                 (+ *octave* (random chrd))
+                 (random cells)
+                 (markov-sel vol *vol-trans*)))
+    (callback (*metro* (+ beat (* 0.5 dur)))
+              'model3
+              (+ beat dur)
+              *beats-per-measure*
+              (markov-sel degree *transitions*)
+              (markov-sel vol *vol-trans*))))
+
+(define cell4 '((-2 -2 1 1)
+                (2 2 2 2)))
+
+(define cells (cons cell4 cells))
+(define *notes-per-melody-chord* 4)
+
+(model3 (*metro* 'get-beat 4) *beats-per-measure* 'i *default-vol*)
+
+(define model3)
