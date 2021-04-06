@@ -1,18 +1,23 @@
 ;;;; A piano piece, sequel to the piano piece recorded here
 ;;;; (performed / recorded with undertone):
 ;;;; * https://soundcloud.com/oubiwann/journey-of-the-source-variation-3
+;;;;
+;;;; The definitions in this file may be used with the Emacs Extempore plugin
+;;;; or via the undertone Extempore REPL, started with the following:
+;;;; * (undertone.repl.extempore:start)
+;;;;
 
 ;;; Extempore Music Preparation
 ;;;
 ;;; Let's set up the system in preparation for making music:
 
 ;;(define prefix "/Users/oubiwann/lab/lfe/undertone-music/extempore-backend/")
-(define prefix "/Users/dmcgreggor/lab/lfe/undertone-music/extempore-backend/")
+(define prefix "/Users/dmcgreggor/lab/ut-proj/music/extempore-backend/")
 
 (sys:load (string-append prefix "init.xtm"))
 (sys:load (string-append prefix "funs.xtm"))
 
-(*metro* 'set-tempo 68)
+(*metro* 'set-tempo 40)
 
 (define *default-vol* 80)
 (define *scale* (pc:scale c1 'aeolian))
@@ -22,7 +27,7 @@
 (begin (pm_print_devices) (println))
 
 ;; Select the right one and define some constants
-(define primary-midi-device-id 4)
+(define primary-midi-device-id 7)
 (define *midiout* (pm_create_output_stream primary-midi-device-id))
 (define *midi-channel* 0)
 
@@ -33,12 +38,14 @@
 
 (send-midi-cc (now) *midiout* *midi-sustain* *midi-off* *midi-channel*)
 
+(define *key* c1)
 (define minor '-)
 (define major '^)
 (define *mode* minor)
 (define *beats-per-measure* 3)
+(define *octave* 12)
 
-;; Voice 1 is the bass
+;; Voice 1 is the bass (npc = notes per chord)
 (define *v1-npc* 5)
 
 ;; Voice 2 is the low harmony
@@ -114,11 +121,11 @@
     (send-midi-cc (+ (now) 1) *midiout* *midi-sustain* *midi-on* *midi-channel*)
     (let ((chrd (uniq (pc:make-chord c3
                                      c5
-                                     *notes-per-melody-chord*
+                                     *v3-npc*
                                      (pc:diatonic *key* *mode* degree))))
           (bass-chrd (uniq (pc:make-chord c2
                                           c4
-                                          *notes-per-chord*
+                                          *v1-npc*
                                           (pc:diatonic *key* *mode* degree)))))
       (play-arpeggio beat *beats-per-measure* chrd 1 vol 0)
       (play-chord-sustain beat *beats-per-measure* bass-chrd (markov-sel vol *vol-trans*)))
@@ -132,8 +139,6 @@
 (model3 (*metro* 'get-beat 4) *beats-per-measure* 'i *default-vol*)
 
 (define *scale* (pc:scale *key* 'harmonic))
-(define *notes-per-melody-chord* 3)
-(define *octave* 12)
 
 (define cell1 '((0 0)
                 (5/2 1/2)))
@@ -142,7 +147,7 @@
   (lambda (beat note cell vol)
     (let* ((octave-bump (random (car cell)))
            (melody (pc:make-chord-fixed (+ note octave-bump)
-                                        *notes-per-melody-chord*
+                                        *v3-npc*
                                         *scale*))
            (dur (random (cadr cell))))
       (play-arpeggio beat 3 melody dur (markov-sel vol *vol-trans*) 0))))
@@ -153,11 +158,11 @@
     (send-midi-cc (+ (now) 1) *midiout* *midi-sustain* *midi-on* *midi-channel*)
     (let ((chrd (uniq (pc:make-chord c3
                                      c5
-                                     *notes-per-melody-chord*
+                                     *v3-npc*
                                      (pc:diatonic *key* *mode* degree))))
           (bass-chrd (uniq (pc:make-chord c2
                                           c4
-                                          *notes-per-chord*
+                                          *v1-npc*
                                           (pc:diatonic *key* *mode* degree)))))
       (play-arpeggio beat *beats-per-measure* chrd 1 vol 0)
       (play-chord-sustain beat *beats-per-measure* bass-chrd (markov-sel vol *vol-trans*))
@@ -180,7 +185,7 @@
 (define model3
   (lambda (beat dur degree)
     (let ((chrd (pc:make-chord-fixed c4
-                                     *notes-per-chord*
+                                     *v1-npc*
                                      (pc:diatonic *key* *mode* degree))))
       (play-cell beat (+ *octave* (random chrd)) (random cells))
       (play-arpeggio beat *beats-per-measure* chrd 1 *default-vol* 0))
@@ -197,11 +202,11 @@
     (send-midi-cc (+ (now) 1) *midiout* *midi-sustain* *midi-on* *midi-channel*)
     (let ((chrd (uniq (pc:make-chord c3
                                      c5
-                                     *notes-per-melody-chord*
+                                     *v3-npc*
                                      (pc:diatonic *key* *mode* degree))))
           (bass-chrd (uniq (pc:make-chord c2
                                           c4
-                                          *notes-per-chord*
+                                          *v1-npc*
                                           (pc:diatonic *key* *mode* degree)))))
       (play-arpeggio beat *beats-per-measure* chrd 1 vol 0)
       (play-chord-sustain beat *beats-per-measure* bass-chrd (markov-sel vol *vol-trans*))
@@ -259,21 +264,23 @@
 
 (define model3
   (lambda (beat dur degree vol)
+    (println 'degree '= degree)
     ;; Depress the sustain pedal
-    (send-midi-cc (+ (now) 1) *midiout* *midi-sustain* *midi-on* *midi-channel*)
+    ;(send-midi-cc (+ (now) 1) *midiout* *midi-sustain* *midi-on* *midi-channel*)
     (let ((chrd (uniq (pc:make-chord c3
                                      c5
-                                     *notes-per-melody-chord*
+                                     *v3-npc*
                                      (pc:diatonic *key* *mode* degree))))
           (bass-chrd (uniq (pc:make-chord c2
                                           c4
-                                          *notes-per-chord*
+                                          *v1-npc*
                                           (pc:diatonic *key* *mode* degree))))
           (xform (random (list identity inverter jumble jumble))))
       (play-arpeggio beat *beats-per-measure* (xform chrd) 1 vol 0)
       (play-chord-sustain beat *beats-per-measure* bass-chrd (markov-sel vol *vol-trans*))
       (play-cell beat
                  (+ *octave* (random chrd))
+                 *v2-npc*
                  (random cells)
                  (markov-sel vol *vol-trans*)))
     (callback (*metro* (+ beat (* 0.5 dur)))
@@ -287,8 +294,10 @@
                 (2 2 2 2)))
 
 (define cells (cons cell4 cells))
-(define *notes-per-melody-chord* 4)
+(define *v3-npc* 4)
 
 (model3 (*metro* 'get-beat 4) *beats-per-measure* 'i *default-vol*)
 
 (define model3)
+
+(println *transitions*)
