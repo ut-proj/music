@@ -163,6 +163,12 @@
                 (play-midi beat dur note vol))
               chord)))
 
+(define play-chord-sustain
+  (lambda (beat dur chord vol)
+    (for-each (lambda (note)
+                (play-midi beat (* 2 dur) note vol))
+              chord)))
+
 (define play-arpeggio
   (lambda (beat max-dur notes note-dur vol total-dur)
     (let* ((total-dur (+ total-dur note-dur))
