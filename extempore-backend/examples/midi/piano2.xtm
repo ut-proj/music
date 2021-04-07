@@ -126,11 +126,39 @@
                         (viio i)))
 
 ;; Inspired by Max Richter
-(define *transitions* '((i (i -sus) (i -9))
+(define *transitions* '((i          (i -sus) (i -9))
                         ((i -sus)   i)
                         ((i -2)     i)
                         ((i -7)     i)
                         ((i -9)     (i -2))))
+
+;; Inspired by Max Richter
+(define *transitions* '((i          (i -sus) (i -9))
+                        (ii         (i -sus) ii)
+                        ((i -sus)   i ii)
+                        ((i -2)     i ii)
+                        ((i -7)     i)
+                        ((i -9)     (i -2))))
+
+;; Inspired by Max Richter
+(define *transitions* '((i          i (i -sus) (i -9))
+                        ((i -sus)   (i -sus) iv)
+                        ((i -2)     (i -2) vii)
+                        ((i -7)     (i -7) i)
+                        ((i -9)     (i -2) (i -9) )
+                        (iv         i iv)
+                        (vii        i vii)))
+
+;; Inspired by Max Richter
+(define *transitions* '((i          i (i -sus) (i -9))
+                        ((i -sus)   (i -sus) iv)
+                        ((i -2)     (i -2) iii vii)
+                        (iii        i iii)
+                        ((i -7)     (i -7) i)
+                        ((i -9)     (i -2) (i -9) vi)
+                        (iv         i iv)
+                        (vi         (i -2))
+                        (vii        i vii)))
 
 (define make-chord
   (lambda (lo hi count key mode type)
@@ -162,7 +190,7 @@
     ;; Depress the sustain pedal
     (send-midi-cc (+ (now) 1) *midiout* *midi-sustain* *midi-on* *midi-channel*)
     (let ((chrd (uniq (make-chord *lo-melody* *hi-melody* *v3-npc* *key* *mode* degree)))
-          (bass-chrd (uniq (make-chord *lo-bass* *hi-bass* *v1-npc* *key* *mode* degree))))
+          (bass-chrd (uniq (make-chord *lo-bass* (+ 12 *hi-bass*) (- *v1-npc* 1) *key* *mode* degree))))
       (play-arpeggio beat *beats-per-measure* chrd 1 vol 0)
       (play-chord-sustain beat *beats-per-measure* bass-chrd (markov-sel vol *vol-trans*)))
       (callback (*metro* (+ beat (* 0.5 dur)))
@@ -237,7 +265,7 @@
     ;; Depress the sustain pedal
     (send-midi-cc (+ (now) 1) *midiout* *midi-sustain* *midi-on* *midi-channel*)
     (let ((chrd (uniq (make-chord *lo-melody* *hi-melody* *v3-npc* *key* *mode* degree)))
-          (bass-chrd (uniq (make-chord *lo-bass* *hi-bass* *v1-npc* *key* *mode* degree))))
+          (bass-chrd (uniq (make-chord (+ 12 *lo-bass*) (+ 12 *hi-bass*) (- *v1-npc* 1) *key* *mode* degree))))
       (play-arpeggio beat *beats-per-measure* chrd 1 vol 0)
       (play-chord-sustain beat *beats-per-measure* bass-chrd (markov-sel vol *vol-trans*))
       (play-cell beat
@@ -298,8 +326,8 @@
     (println 'degree '= degree)
     ;; Depress the sustain pedal
     (send-midi-cc (+ (now) 1) *midiout* *midi-sustain* *midi-on* *midi-channel*)
-    (let ((chrd (uniq (make-chord *lo-melody* *hi-melody* *v3-npc* *key* *mode* degree)))
-          (bass-chrd (uniq (make-chord *lo-bass* *hi-bass* *v1-npc* *key* *mode* degree)))
+    (let ((chrd (uniq (make-chord *lo-melody* (- *hi-melody* 12) *v3-npc* *key* *mode* degree)))
+          (bass-chrd (uniq (make-chord (+ 12 *lo-bass*) (+ 12 *hi-bass*) (- *v1-npc* 2) *key* *mode* degree)))
           (xform (random (list identity inverter jumble jumble))))
       (play-arpeggio beat *beats-per-measure* (xform chrd) 1 vol 0)
       (play-chord-sustain beat *beats-per-measure* bass-chrd (markov-sel vol *vol-trans*))
