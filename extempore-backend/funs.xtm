@@ -1,5 +1,9 @@
 ;;; Move the following into a pitch file in the undertone project
 
+(define degree?
+  (lambda (d)
+    (member d (map car *pc:diatonic-minor*))))
+
 (define triad
   (lambda (root name)
     (cond ((eq? name 'I) (pc:diatonic root *major* 'i))
