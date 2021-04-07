@@ -11,25 +11,26 @@
 ;;;
 ;;; Let's set up the system in preparation for making music:
 
-;;(define prefix "/Users/oubiwann/lab/lfe/undertone-music/extempore-backend/")
-(define prefix "/Users/dmcgreggor/lab/ut-proj/music/extempore-backend/")
+(define prefix "/Users/oubiwann/lab/ut-proj/music/extempore-backend/")
+;;(define prefix "/Users/dmcgreggor/lab/ut-proj/music/extempore-backend/")
 
 (sys:load (string-append prefix "init.xtm"))
 (sys:load (string-append prefix "funs.xtm"))
 
-(*metro* 'set-tempo 80)
+(begin (pm_print_devices) (println))
+
+;; Select the right one and define some constants
+(define primary-midi-device-id 3)
+(define *midiout* (pm_create_output_stream primary-midi-device-id))
+(define *midi-channel* 0)
+
+(*metro* 'set-tempo 20)
 
 (define *default-vol* 80)
 (define *scale* (pc:scale e1 'aeolian))
 (define initial-pitch c7)
 (define initial-step 0)
 (define initial-dur 4)
-(begin (pm_print_devices) (println))
-
-;; Select the right one and define some constants
-(define primary-midi-device-id 5)
-(define *midiout* (pm_create_output_stream primary-midi-device-id))
-(define *midi-channel* 0)
 
 (define *midi-off* 0)
 (define *midi-semi-off* 50) ; for use with pedal muting
