@@ -80,6 +80,10 @@
 
 ;;; Move the following into a language file in the undertone project
 
+(define identity
+  (lambda (lst)
+    lst))
+
 (define uniq
   (lambda (lst)
     (cond ((null? lst)
@@ -191,4 +195,4 @@
                       (random (cdr (assoc vol *vol-trans*)))
                       total-dur))))))
 
-(println 'Loaded 'common 'functions 'for 'demo.)
+(println 'Loaded 'common 'functions.)

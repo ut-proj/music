@@ -7,6 +7,4 @@
 
 (pm_initialize)
 
-(define initialised
-  (lambda ()
-    "End-of-file placeholder."))
+(println 'Initialising '...)

@@ -1,11 +1,18 @@
+;;;; "Submerged in a Bed of Stars"
+;;;;
 ;;;; A piano piece, sequel to the piano piece recorded here
 ;;;; (performed / recorded with undertone):
 ;;;; * https://soundcloud.com/oubiwann/journey-of-the-source-variation-3
 ;;;;
-;;;; The definitions in this file may be used with the Emacs Extempore plugin
-;;;; or via the undertone Extempore REPL, started with the following:
-;;;; * (undertone.repl.extempore:start)
-;;;;
+;;;; Part of the collection of piano pieces "Traversing the Galaxy on Borrowed
+;;;; Transportation":
+;;;; * https://soundcloud.com/oubiwann/sets/traversing-the-galaxy-on
+
+
+;;; The definitions in this file may be used with the Emacs Extempore plugin
+;;; or via the undertone Extempore REPL, started with the following:
+;;; * (undertone.repl.extempore:start)
+
 
 ;;; Extempore Music Preparation
 ;;;
@@ -74,61 +81,7 @@
     (60 40 50 60 60 70)
     (70 50 60 60 70 80)
     (80 60 70 70 80 90)
-    (90 70 80 80 90 100)
-    (100 80 90 100 110)
-    (110 90 100 110)))
-
-(define *transitions* '((i i iv)
-                        (iv i iv v)
-                        (v i v)))
-
-(define *transitions* '((i i v)
-                        (iv i)
-                        (v i v)
-                        (vi i)))
-
-(define *transitions* '((i i iv)
-                        (iv i iv)
-                        (v i iv)
-                        (vi i)))
-
-(define *transitions* '((i i i iv v vi)
-                        (iv i iv)
-                        (v i v)
-                        (vi iv vi)))
-
-(define *transitions* '((i i i iv n6 v vi viio)
-                        (iv i iv)
-                        (n6 viio i)
-                        (v i v)
-                        (vi iv vi)
-                        (viio i)))
-
-
-(define *transitions* '((i ii)
-                        (ii n6)
-                        (n6 viio6)
-                        (viio6 i)))
-
-
-(define *transitions* '((i ii)
-                        (ii n6)
-                        (n6 viio7)
-                        (viio7 i)))
-
-(define *transitions* '((i iii)
-                        (iii iv7)
-                        (iv7 viio7)
-                        (viio7 n6)
-                        (n6 i)))
-
-;; This one was GREAT with the electric guitar ... it's going to enter the regular
-;; jam session line up :-)
-(define *transitions* '((i i64)
-                        (i64 iii)
-                        (iii v)
-                        (v viio)
-                        (viio i)))
+    (90 70 80 80 90)))
 
 ;; Inspired by Max Richter
 (define *transitions* '((i        (i -sus) (i -9))
@@ -147,24 +100,45 @@
                      count
                      basis))))
 
-(define press-pedal
+(define release-pedal
   (lambda ()
-    ;; Release
     (send-midi-cc (now)
                   *midiout*
                   *midi-sustain*
                   *midi-off*
-                  *midi-channel*)
-    ;; Depress
+                  *midi-channel*)))
+
+(define semi-release-pedal
+  (lambda ()
+    (send-midi-cc (now)
+                  *midiout*
+                  *midi-sustain*
+                  *midi-semi-off*
+                  *midi-channel*)))
+
+(define depress-pedal
+  (lambda ()
     (send-midi-cc (+ (now) (*metro* 'get-beat 1/8))
                   *midiout*
                   *midi-sustain*
                   *midi-on* *midi-channel*)))
 
+(define repedal
+  (lambda ()
+    (release-pedal)
+    (depress-pedal)))
+
+(define semi-repedal
+  (lambda ()
+    (semi-release-pedal)
+    (depress-pedal)))
+
+;;; Performance Start
+
 (define model3
   (lambda (beat dur degree vol)
     (println 'next 'degree '= degree)
-    (press-pedal)
+    (repedal)
     (let ((bass-chrd (uniq (make-chord *lo-bass* (+ 12 *hi-bass*) *v1-npc* *key* *mode* degree))))
       (play-chord beat *beats-per-measure* bass-chrd (markov-sel vol *vol-trans*))
       (callback (*metro* (+ beat (* 0.5 dur)))
@@ -179,7 +153,7 @@
 (define model3
   (lambda (beat dur degree vol)
     (println 'next 'degree '= degree)
-    (press-pedal)
+    (repedal)
     (let ((chrd (uniq (make-chord *lo-melody* *hi-melody* *v3-npc* *key* *mode* degree)))
           (bass-chrd (uniq (make-chord *lo-bass* (+ 12 *hi-bass*) (- *v1-npc* 2) *key* *mode* degree))))
       (play-arpeggio beat *beats-per-measure* chrd 1 vol 0)
@@ -209,7 +183,7 @@
 (define model3
   (lambda (beat dur degree vol)
     (println 'next 'degree '= degree)
-    (press-pedal)
+    (repedal)
     (let ((chrd (uniq (make-chord *lo-melody* *hi-melody* *v3-npc* *key* *mode* degree)))
           (bass-chrd (uniq (make-chord *lo-bass* *hi-bass* (- *v1-npc* 2) *key* *mode* degree))))
       (play-arpeggio beat *beats-per-measure* chrd 1 vol 0)
@@ -243,6 +217,7 @@
 (define model3
   (lambda (beat dur degree vol)
     (println 'next 'degree '= degree)
+    (repedal)
     (let ((chrd (uniq (make-chord *lo-melody* *hi-melody* *v3-npc* *key* *mode* degree))))
       (play-cell beat
                  (+ *octave* (random chrd))
@@ -270,7 +245,7 @@
 (define model3
   (lambda (beat dur degree vol)
     (println 'next 'degree '= degree)
-    (press-pedal)
+    (repedal)
     (let ((chrd (uniq (make-chord *lo-melody* *hi-melody* *v3-npc* *key* *mode* degree)))
           (bass-chrd (uniq (make-chord (+ 12 *lo-bass*) (+ 12 *hi-bass*) (- *v1-npc* 1) *key* *mode* degree))))
       (play-arpeggio beat *beats-per-measure* chrd 1 vol 0)
@@ -338,7 +313,7 @@
 (define model3
   (lambda (beat dur degree vol)
     (println 'next 'degree '= degree)
-    (press-pedal)
+    (repedal)
     (let ((chrd (uniq (make-chord *lo-melody* *hi-melody* *v3-npc* *key* *mode* degree)))
           (bass-chrd (uniq (make-chord (+ 12 *lo-bass*) (+ 12 *hi-bass*) (- *v1-npc* 2) *key* *mode* degree)))
           (xform (random (list identity inverter jumble jumble))))
@@ -364,10 +339,24 @@
 
 ;; Prepare to close the piece ...
 
+
+(define *vol-trans*
+  '((0 30)
+    (10 30)
+    (20 30)
+    (30 30 30 40)
+    (40 30 30 40 50)
+    (50 40 40 50 60)
+    (60 40 50 50 60)
+    (70 60)
+    (80 70)
+    (90 80)))
+
 ;; No bass chords
 (define model3
   (lambda (beat dur degree vol)
     (println 'next 'degree '= degree)
+    (semi-repedal)
     (let ((chrd (uniq (make-chord *lo-melody* *hi-melody* *v3-npc* *key* *mode* degree))))
       (play-cell beat
                  (+ *octave* (random chrd))
@@ -387,11 +376,13 @@
 (define model3
   (lambda (beat dur degree vol)
     (println 'next 'degree '= degree)
-    (press-pedal)
+    (semi-repedal)
     (let ((chrd (uniq (make-chord *lo-melody* *hi-melody* *v3-npc* *key* *mode* degree)))
           (bass-chrd (uniq (make-chord *lo-bass* *hi-bass* (- *v1-npc* 2) *key* *mode* degree))))
-      (play-arpeggio beat *beats-per-measure* chrd 1 vol 0)
-      (play-chord beat *beats-per-measure* bass-chrd (markov-sel (- vol 10) *vol-trans*))
+      (if (> (random) 0.5)
+          (play-arpeggio beat *beats-per-measure* chrd 1 vol 0)
+          (play-chord beat *beats-per-measure* chrd (markov-sel vol *vol-trans*)))
+      (play-chord-sustain beat *beats-per-measure* bass-chrd (markov-sel (- vol 10) *vol-trans*))
       (play-cell beat
                  (+ *octave* (random chrd))
                  *v3-npc*
@@ -418,14 +409,25 @@
                         ((i -7)   i)
                         ((i -9)   (i -2))))
 
+(define *vol-trans*
+  '((0 30)
+    (10 30)
+    (20 30)
+    (30 30 30 40)
+    (40 30 40)
+    (50 40)
+    (60 50)))
+
 (define model3
   (lambda (beat dur degree vol)
     (println 'next 'degree '= degree)
-    (press-pedal)
+    (semi-repedal)
     (let ((chrd (uniq (make-chord *lo-melody* *hi-melody* *v3-npc* *key* *mode* degree)))
           (bass-chrd (uniq (make-chord *lo-bass* (+ 12 *hi-bass*) (- *v1-npc* 2) *key* *mode* degree))))
-      (play-arpeggio beat *beats-per-measure* chrd 1 vol 0)
-      (play-chord-sustain beat *beats-per-measure* bass-chrd (markov-sel (- vol 10) *vol-trans*)))
+      (if (> (random) 0.75)
+          (play-arpeggio beat *beats-per-measure* chrd 1 vol 0)
+          (play-chord beat *beats-per-measure* chrd (markov-sel vol *vol-trans*)))
+      (play-chord-sustain beat *beats-per-measure* bass-chrd (markov-sel vol *vol-trans*)))
       (callback (*metro* (+ beat (* 0.5 dur)))
                 'model3
                 (+ beat dur)
@@ -443,7 +445,7 @@
 (define model3
   (lambda (beat dur degree vol)
     (println 'next 'degree '= degree)
-    (press-pedal)
+    (semi-repedal)
     (let ((bass-chrd (uniq (make-chord *lo-bass* (+ 12 *hi-bass*) (- *v1-npc* 1) *key* *mode* degree))))
       (play-chord-sustain beat *beats-per-measure* bass-chrd (markov-sel (- vol 10) *vol-trans*)))
       (callback (*metro* (+ beat (* 0.5 dur)))
