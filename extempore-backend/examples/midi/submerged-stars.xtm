@@ -59,7 +59,7 @@
 ;;(define *scale* (pc:scale *key* 'harmonic))
 ;;(define *scale* (pc:scale *key* 'aeolian))
 
-(define *beats-per-measure* 3)
+(define *beats-per-measure* 6)
 (define *octave* 12)
 
 ;; Voice 1 is the bass (npc = notes per chord)
@@ -133,6 +133,8 @@
     (semi-release-pedal)
     (depress-pedal)))
 
+(repedal)
+
 ;;; Performance Start
 
 (define model3
@@ -141,7 +143,7 @@
     (repedal)
     (let ((bass-chrd (uniq (make-chord *lo-bass* (+ 12 *hi-bass*) *v1-npc* *key* *mode* degree))))
       (play-chord beat *beats-per-measure* bass-chrd (markov-sel vol *vol-trans*))
-      (callback (*metro* (+ beat (* 0.5 dur)))
+      (callback (*metro* (+ beat dur))
                 'model3
                 (+ beat dur)
                 *beats-per-measure*
@@ -242,26 +244,6 @@
                         (iv       i iv)
                         (vii      i vii)))
 
-(define model3
-  (lambda (beat dur degree vol)
-    (println 'next 'degree '= degree)
-    (repedal)
-    (let ((chrd (uniq (make-chord *lo-melody* *hi-melody* *v3-npc* *key* *mode* degree)))
-          (bass-chrd (uniq (make-chord (+ 12 *lo-bass*) (+ 12 *hi-bass*) (- *v1-npc* 1) *key* *mode* degree))))
-      (play-arpeggio beat *beats-per-measure* chrd 1 vol 0)
-      (play-chord-sustain beat *beats-per-measure* bass-chrd (markov-sel vol *vol-trans*))
-      (play-cell beat
-                 (+ *octave* (random chrd))
-                 *v3-npc*
-                 (random cells)
-                 (markov-sel vol *vol-trans*)))
-    (callback (*metro* (+ beat (* 0.5 dur)))
-              'model3
-              (+ beat dur)
-              *beats-per-measure*
-              (markov-sel degree *transitions*)
-              (markov-sel vol *vol-trans*))))
-
 (define cell3 '((0 1)
                 (3/2 3/2)))
 
@@ -294,6 +276,26 @@
                      dur
                      (markov-sel vol *vol-trans*)
                      0))))
+
+(define model3
+  (lambda (beat dur degree vol)
+    (println 'next 'degree '= degree)
+    (repedal)
+    (let ((chrd (uniq (make-chord *lo-melody* *hi-melody* *v3-npc* *key* *mode* degree)))
+          (bass-chrd (uniq (make-chord (+ 12 *lo-bass*) (+ 12 *hi-bass*) (- *v1-npc* 1) *key* *mode* degree))))
+      (play-arpeggio beat *beats-per-measure* chrd 1 vol 0)
+      (play-chord-sustain beat *beats-per-measure* bass-chrd (markov-sel vol *vol-trans*))
+      (play-cell beat
+                 (+ *octave* (random chrd))
+                 *v3-npc*
+                 (random cells)
+                 (markov-sel vol *vol-trans*)))
+    (callback (*metro* (+ beat (* 0.5 dur)))
+              'model3
+              (+ beat dur)
+              *beats-per-measure*
+              (markov-sel degree *transitions*)
+              (markov-sel vol *vol-trans*))))
 
 ;;(define *scale* (pc:scale *key* 'harmonic))
 ;;(define *scale* (pc:scale *key* 'aeolian))
@@ -338,7 +340,6 @@
 (define *v3-npc* 4)
 
 ;; Prepare to close the piece ...
-
 
 (define *vol-trans*
   '((0 30)
@@ -456,3 +457,5 @@
                 (markov-sel vol *vol-trans*))))
 
 (define model3)
+
+(repedal)
