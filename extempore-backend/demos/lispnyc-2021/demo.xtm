@@ -1,0 +1,451 @@
+;;;; A demo for the LispNYC meeting
+;;;;
+;;;; This code was adapted from the talk that Andrew Sorensen gave at
+;;;; Codemania 2015: "A Programmers's Guide to Western Music" as well
+;;;; as from Ben Swift's documentation for the new "patterns" feature
+;;;; in Extempore.
+
+;;; Extempore Music Preparation
+;;;
+;;; Let's set up the system in preparation for making music:
+
+;;(define prefix "/Users/oubiwann/lab/ut-proj/music/extempore-backend/")
+(define prefix "/Users/dmcgreggor/lab/ut-proj/music/extempore-backend/")
+
+(sys:load (string-append prefix "init.xtm"))
+(sys:load (string-append prefix "funs.xtm"))
+
+;; List our MIDI devices
+(begin (pm_print_devices) (println))
+
+;; Select the right one and define some constants
+(define primary-midi-device-id 4)
+(define *midiout* (pm_create_output_stream primary-midi-device-id))
+(define *midi-channel* 0)
+
+(define *default-vol* 80)
+
+(define *mode* minor)
+(define *notes-per-chord* 3)
+(define *vol-trans*
+  (list (list *default-vol* *default-vol*)))
+
+(define *midi-off* 0)
+(define *midi-semi-off* 50) ; for use with pedal muting
+(define *midi-on* 127)
+(define *midi-sustain* 64)
+
+(define release-pedal
+  (lambda ()
+    (send-midi-cc (now)
+                  *midiout*
+                  *midi-sustain*
+                  *midi-off*
+                  *midi-channel*)))
+
+(define semi-release-pedal
+  (lambda ()
+    (send-midi-cc (now)
+                  *midiout*
+                  *midi-sustain*
+                  *midi-semi-off*
+                  *midi-channel*)))
+
+(define depress-pedal
+  (lambda ()
+    (send-midi-cc (+ (now) (*metro* 'get-beat 1/8))
+                  *midiout*
+                  *midi-sustain*
+                  *midi-on* *midi-channel*)))
+
+(define repedal
+  (lambda ()
+    (release-pedal)
+    (depress-pedal)))
+
+(define semi-repedal
+  (lambda ()
+    (semi-release-pedal)
+    (depress-pedal)))
+
+
+(define play-mnote
+  (lambda (time pitch vol dur)
+    (semi-repedal)
+    (play-midi-note time *midiout* pitch vol dur *midi-channel*)))
+
+;;; Sound Check!
+;;;
+;;; Create a function to play a note ... then play it :-)
+
+(define play-something
+  (lambda ()
+    (play-mnote (now)
+                c2
+                80
+                40000)))
+
+(play-something)
+
+;;; Pattern Check ...
+
+(:> pat-1
+    2
+    0
+    (play-mnote (now)
+                @1
+                80
+                (* dur 40000))
+    (list c2 bb1 c2 eb2))
+
+;; Let's add a rest and a triplet:
+
+(:> pat-1
+    4
+    0
+    (play-mnote (now)
+                @1
+                80
+                (* dur 40000))
+    (list c2 bb1 '_ (list eb2 bb1 c3)))
+
+;; How about a chord:
+
+(:> pat-1
+    16
+    0
+    (for-each
+     (lambda (note)
+       (play-mnote (now)
+                   note
+                   80
+                   (* dur 40000)))
+     @1)
+    '(#(60 63 67)
+      #(60 63 68)
+      #(58 63 67)
+      #(58 63 65)
+      #(58 62 65)))
+
+;;    (list (vector c2 c3 c4 eb4 g4 b4)))
+
+;; And ... stop:
+
+(:| pat-1) ;; <-- bad manners, but faster to type ;-)
+
+
+(:> wtc-b1-p1
+    4
+    0
+    (play-mnote (now)
+                @1
+                @2
+                (* dur 160000))
+    (cycle LC 2
+           '(c3 e3 g3 c4 e4 g3 c4 e4)
+           '(c3 d3 a3 d4 f4 a3 d4 f4))
+    '(50 60 70 80 70 60 70 80))
+
+(:> wtc-b1-p1
+    4
+    0
+    (play-mnote (now)
+                @1
+                @2
+                (* dur 160000))
+    (cycle LC 2
+           '(c3 (e3 g3 c4) e4 g3 c4 e4)
+           '(c3 (d3 a3 d4) f4 a3 d4 f4))
+    '(50 60 70 80 70 60 70 80))
+
+(:> wtc-b1-p1
+    4
+    0
+    (play-mnote (now)
+                @1
+                @2
+                (* dur 160000))
+    (cycle LC 2
+           '(c3 (e3 g3 c4) e4 (g3 c4 e4))
+           '(c3 (d3 a3 d4) f4 (a3 d4 f4)))
+    '(50 60 70 80 70 60 70 80))
+
+(:| wtc-b1-p1)
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+;;; Model 1
+;;;
+;;; 1000 A.D., Black Adder Series 1 - notes played in a sequence, acting in harmony
+
+(set! *scale* (pc:scale c1 'aeolian))
+
+(:> model-1
+    16
+    0
+    (play-mnote (now)
+                @1
+                80
+                (* dur 40000))
+    (reverse (scale 3 8)))
+
+(println (midi->notes (reverse (scale 3 8))))
+(println (midi->notes (rotate (reverse (scale 3 8)) 4)))
+(println (midi->notes (rotate (reverse (scale 3 8)) 5)))
+
+(:> model-1
+    32
+    0
+    (begin
+      (play-mnote (now)
+                  @1
+                  80
+                  (* dur 40000))
+      (play-mnote (+ (now) 44100)
+                  @2
+                  80
+                  (* dur 40000)))
+    (reverse (scale 2 16))
+    (rotate (reverse (scale 2 16)) 4))
+
+
+(:> model-1
+    64
+    0
+    (begin
+      (play-mnote (now)
+                  @1
+                  80
+                  (* dur 160000))
+      (play-mnote (+ (now) 44100)
+                  (random (list @2 @3))
+                  80
+                  (* dur 160000)))
+    (reverse (scale 2 16))
+    (rotate (reverse (scale 2 24)) 4)
+    (rotate (reverse (scale 2 32)) 5))
+
+(:| model-1)
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+;;; Model 2
+;;;
+;;; 1500 A.D., Black Adder Series 2 - chords!
+
+(define *lo* c3)
+(define *hi* c6)
+(define *notes-per-chord* 3)
+(define *key* c0)
+(define major '^)
+(define minor '-)
+(define *mode* major)
+(define *transitions* '((i v)
+                        (v i)))
+
+(define model2
+  (lambda (beat dur degree)
+    (map (lambda (p)
+           (play-note (now) synth p *default-vol* (* dur *second*)))
+         (pc:make-chord *lo*
+                        *hi*
+                        *notes-per-chord*
+                        (pc:diatonic *key* *mode* degree)))
+    (callback (*metro* (+ beat (* 0.5 dur)))
+              'model2
+              (+ beat dur)
+              (random '(2 4))
+              (random (cdr (assoc degree *transitions*))))))
+
+(model2 (*metro* 'get-beat 4) 2 'i)
+
+(define *transitions* '((i iv v)
+                        (iv i)
+                        (v i)))
+
+(define *transitions* '((i iv v vi)
+                        (iv i)
+                        (v i)
+                        (vi iv)))
+
+(define *notes-per-chord* 8)
+(define *hi* c7)
+(define *lo* c2)
+(define *mode* minor)
+(define *mode* major)
+
+(define model2)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+;;; Model 3
+;;;
+;;; 1800 A.D., Black Adder Series 3 - arpeggios, melody, and syncopation
+;;;
+;;; We're going to switch to MIDI for this, so I can use a beautiful sampled
+;;; piano VST plugin
+
+;; List our MIDI devices
+(begin (pm_print_devices) (println))
+
+;; Select the right one and define some constants
+(define primary-midi-device-id 4)
+(define *midiout* (pm_create_output_stream primary-midi-device-id))
+(define *midi-channel* 0)
+
+(define *mode* minor)
+(define *notes-per-chord* 3)
+(define *vol-trans*
+  (list (list *default-vol* *default-vol*)))
+
+(define model3
+  (lambda (beat dur degree)
+    (let ((chrd (pc:make-chord-fixed c4
+                                     *notes-per-chord*
+                                     (pc:diatonic *key* *mode* degree))))
+      (play-arpeggio beat 3 chrd 1 *default-vol* 0))
+      (callback (*metro* (+ beat (* 0.5 dur)))
+                'model3
+                (+ beat dur)
+                3
+                (random (cdr (assoc degree *transitions*))))))
+
+(model3 (*metro* 'get-beat 4) 3 'i)
+
+(define *vol-trans*
+  '((20 20 20 40 40)
+    (40 20 40 40 50)
+    (50 40 50 50 60)
+    (60 40 50 60 60 70)
+    (70 50 60 60 70 80)
+    (80 60 70 70 80 90)
+    (90 70 80 80 90)))
+
+(define *transitions* '((i iv n6 v vi viio)
+                        (iv i)
+                        (n6 viio i)
+                        (v i)
+                        (vi iv)
+                        (viio i)))
+
+(define *scale* (pc:scale *key* 'harmonic))
+(define *octave* 12)
+
+(define cell1 '((0 0)
+                (5/2 1/2)))
+
+(define play-cell
+  (lambda (beat note cell)
+    (let* ((octave-bump (random (car cell)))
+           (melody (pc:make-chord-fixed (+ note octave-bump)
+                                        *notes-per-chord*
+                                        *scale*))
+           (dur (random (cadr cell))))
+      (play-arpeggio beat 3 melody dur *default-vol* 0))))
+
+(define model3
+  (lambda (beat dur degree)
+    (let ((chrd (pc:make-chord-fixed c4
+                                     *notes-per-chord*
+                                     (pc:diatonic *key* *mode* degree))))
+      (play-cell beat (+ *octave* (random chrd)) cell1)
+      (play-arpeggio beat 3 chrd 1 *default-vol* 0))
+      (callback (*metro* (+ beat (* 0.5 dur)))
+                'model3
+                (+ beat dur)
+                3
+                (random (cdr (assoc degree *transitions*))))))
+
+(define cell2 '((-2 1 1)
+                (1 1 1)))
+
+(define cells (list cell1 cell2))
+
+(define model3
+  (lambda (beat dur degree)
+    (let ((chrd (pc:make-chord-fixed c4
+                                     *notes-per-chord*
+                                     (pc:diatonic *key* *mode* degree))))
+      (play-cell beat (+ *octave* (random chrd)) (random cells))
+      (play-arpeggio beat 3 chrd 1 *default-vol* 0))
+      (callback (*metro* (+ beat (* 0.5 dur)))
+                'model3
+                (+ beat dur)
+                3
+                (random (cdr (assoc degree *transitions*))))))
+
+(define cell3 '((0 1)
+                (3/2 3/2)))
+
+(define cells (list cell1 cell2 cell3))
+
+(define identity
+  (lambda (lst)
+    lst))
+
+(define inverter
+  (lambda (lst)
+    (pc:invert lst *scale*)))
+
+(define play-cell
+  (lambda (beat note cell)
+    (let* ((octave-bump (random (car cell)))
+           (melody (pc:make-chord-fixed (+ octave-bump note)
+                                        *notes-per-chord*
+                                        *scale*))
+           (xformer (random (list identity inverter)))
+           (dur (random (cadr cell))))
+      (play-arpeggio beat 3 (xformer melody) dur *default-vol* 0))))
+
+(define model3)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+;;; Model 4
+;;;
+;;; Late 1800s A.D., A little before Black Adder Series 4 - impressionism
+
+(define *his* (list c7 c8))
+(define *los* (list c3 c4))
+(define *notes-per-chord* 9)
+
+(define get-scale
+  (lambda ()
+    (pc:scale 0 (random '(pentatonic
+                          pentatonic
+                          wholetone)))))
+
+(define model4
+  (lambda (beat dur)
+    (*metro* 'set-tempo (cosr 140 60 1/21))
+    (let ((chrd (pc:make-chord (random *los*)
+                               (random *his*)
+                               *notes-per-chord*
+                               (get-scale))))
+      (play-arpeggio beat 3 chrd 1/3 *default-vol* 0))
+      (callback (*metro* (+ beat (* 0.5 dur)))
+                'model4
+                (+ beat dur)
+                3)))
+
+(model4 (*metro* 'get-beat 4) 3)
+
+(define model4)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+;;; Model 5
+;;;
+;;; Post WW I to the 1950s (Post Black Adder) - non-diatonic
+
+;; TBD
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+;;; Model 6
+;;;
+;;; 1970s - minimalism and electronica
+
+;; TBD

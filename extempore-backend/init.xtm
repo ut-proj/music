@@ -1,7 +1,7 @@
 ;;;; Setup / initialization for MIDI, etc.
 ;;;;
 
-(sys:load "libs/core/instruments.xtm")
+;;(sys:load "libs/core/instruments.xtm")
 (sys:load "libs/external/portmidi.xtm")
 (sys:load "libs/core/pattern-language.xtm")
 
