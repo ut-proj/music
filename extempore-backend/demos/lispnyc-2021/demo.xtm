@@ -14,6 +14,7 @@
 
 (sys:load (string-append prefix "init.xtm"))
 (sys:load (string-append prefix "funs.xtm"))
+(sys:load (string-append prefix "demos/lispnyc-2021/funs.xtm"))
 
 ;; List our MIDI devices
 (begin (pm_print_devices) (println))
@@ -35,41 +36,6 @@
 (define *midi-semi-off* 50) ; for use with pedal muting
 (define *midi-on* 127)
 (define *midi-sustain* 64)
-
-(define release-pedal
-  (lambda ()
-    (send-midi-cc (now)
-                  *midiout*
-                  *midi-sustain*
-                  *midi-off*
-                  *piano-channel*)))
-
-(define semi-release-pedal
-  (lambda ()
-    (send-midi-cc (now)
-                  *midiout*
-                  *midi-sustain*
-                  *midi-semi-off*
-                  *piano-channel*)))
-
-(define depress-pedal
-  (lambda ()
-    (send-midi-cc (+ (now) (*metro* 'get-beat 1/8))
-                  *midiout*
-                  *midi-sustain*
-                  *midi-on*
-                  *piano-channel*)))
-
-(define repedal
-  (lambda ()
-    (release-pedal)
-    (depress-pedal)))
-
-(define semi-repedal
-  (lambda ()
-    (semi-release-pedal)
-    (depress-pedal)))
-
 
 (define play-mnote
   (lambda (time pitch vol dur chan)
@@ -198,10 +164,6 @@
                 *voice-channel*)
     (reverse (scale 3 8)))
 
-(println (midi->notes (reverse (scale 3 8))))
-(println (midi->notes (rotate (reverse (scale 3 8)) 4)))
-(println (midi->notes (rotate (reverse (scale 3 8)) 5)))
-
 (:> model-1a
     32
     0
@@ -218,7 +180,6 @@
                   *voice-channel*))
     (reverse (scale 2 16))
     (rotate (reverse (scale 2 16)) 4))
-
 
 (:> model-1a
     64
@@ -243,14 +204,15 @@
 ;; Monty Python and plainchant
 ;; "Pie Iesu Domine, dona eis requiem"
 ;;
+;; ‎Medieval notation for these two measures can be seen at the end of this video:
+;; * https://youtu.be/dsn9LWh230k
+;;
 ;; Real version in modern notation can be read here:
 ;; * http://www.gregorianbooks.com/gregorian/pdf/CMAA/1954_Chants_of_the_Church_Modern_notation.pdf
 ;; * page 94 of the pdf file, but shown as page 78 of the original
 
 (define melody
-  (list a4 g4 f4 e4 g4 g4 a4 f4 e4 g4 e4 d4 e4 f4 e4 d4))
-
-;; Keeping things simple here; ignoring timing of 1/8th notes!
+  (list a4 g4 f4 e4 g4 g4 a4 f4 e4 g4 '(e4 d4 e4) f4 e4 d4))
 
 (:> pie-iesu
     64
@@ -289,13 +251,11 @@
   (lambda (acc note)
     (if (= (length acc) *melody-length*)
         acc
-        (make-melody (cons note acc) (next-note note)))))
+        (make-melody (cons (pc:quantize note) acc) (next-note note)))))
 
 (define starting-note a4)
 
 (define melody (reverse (make-melody '() starting-note)))
-
-(println melody)
 
 (:> model-1b
     64
@@ -325,12 +285,9 @@
 
 (define make-melody
   (lambda (acc trans note)
-    (println acc)
-    (println trans)
-    (println note)
     (if (= (length acc) *melody-length*)
         acc
-        (melody (cons note acc)
+        (make-melody (cons note acc)
                 (markov-sel trans *transitions*)
                 (eval (rotate (cons note trans) 1))))))
 
@@ -350,14 +307,13 @@
 
 (:| model-1c)
 
-(println (melody '() starting-trans starting-note))
-(println (cons 60 '(58 57)))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
 ;;; Model 2
 ;;;
 ;;; 1500 A.D., Black Adder Series 2 - chords!
 
+(define *midi-channel* *organ-channel*)
 (define *lo* c3)
 (define *hi* c6)
 (define *notes-per-chord* 3)
@@ -370,17 +326,18 @@
 
 (define model2
   (lambda (beat dur degree)
-    (map (lambda (p)
-           (play-note (now) synth p *default-vol* (* dur *second*)))
-         (pc:make-chord *lo*
-                        *hi*
-                        *notes-per-chord*
-                        (pc:diatonic *key* *mode* degree)))
+    (play-chord beat
+                (* dur *second*)
+                (pc:make-chord *lo*
+                               *hi*
+                               *notes-per-chord*
+                               (pc:diatonic *key* *mode* degree))
+                *default-vol*)
     (callback (*metro* (+ beat (* 0.5 dur)))
               'model2
               (+ beat dur)
               (random '(2 4))
-              (random (cdr (assoc degree *transitions*))))))
+              (markov-sel degree *transitions*))))
 
 (model2 (*metro* 'get-beat 4) 2 'i)
 
@@ -407,44 +364,56 @@
 ;;;
 ;;; 1800 A.D., Black Adder Series 3 - arpeggios, melody, and syncopation
 ;;;
-;;; We're going to switch to MIDI for this, so I can use a beautiful sampled
-;;; piano VST plugin
 
-;; List our MIDI devices
-(begin (pm_print_devices) (println))
-
-;; Select the right one and define some constants
-(define primary-midi-device-id 4)
-(define *midiout* (pm_create_output_stream primary-midi-device-id))
-(define *midi-channel* 0)
-
+(define *midi-channel* *piano-channel*)
 (define *mode* minor)
+(define *beats-per-measure* 3)
 (define *notes-per-chord* 3)
 (define *vol-trans*
   (list (list *default-vol* *default-vol*)))
 
+(define make-chord
+  (lambda (lo hi count key mode type)
+    (let ((basis (if (degree? type)
+                     (pc:diatonic key mode type)
+                     (pc:chord (car (pc:diatonic key mode (car type))) (cadr type)))))
+      (pc:make-chord lo
+                     hi
+                     count
+                     basis))))
+
 (define model3
-  (lambda (beat dur degree)
-    (let ((chrd (pc:make-chord-fixed c4
-                                     *notes-per-chord*
-                                     (pc:diatonic *key* *mode* degree))))
-      (play-arpeggio beat 3 chrd 1 *default-vol* 0))
+  (lambda (beat dur degree vol)
+    (repedal)
+    (let ((chrd (uniq (make-chord *lo* *hi* *notes-per-chord* *key* *mode* degree))))
+      (play-arpeggio beat *beats-per-measure* chrd 1 vol 0))
       (callback (*metro* (+ beat (* 0.5 dur)))
                 'model3
                 (+ beat dur)
                 3
-                (random (cdr (assoc degree *transitions*))))))
+                (markov-sel degree *transitions*)
+                vol)))
 
-(model3 (*metro* 'get-beat 4) 3 'i)
+(model3 (*metro* 'get-beat 4) 3 'i *default-vol*)
 
 (define *vol-trans*
-  '((20 20 20 40 40)
-    (40 20 40 40 50)
-    (50 40 50 50 60)
-    (60 40 50 60 60 70)
-    (70 50 60 60 70 80)
-    (80 60 70 70 80 90)
-    (90 70 80 80 90)))
+  '((50 50 60)
+    (60 50 60 70)
+    (70 50 60 70 80)
+    (80 60 70 80 90)
+    (90 70 80 90)))
+
+(define model3
+  (lambda (beat dur degree vol)
+    (repedal)
+    (let ((chrd (uniq (make-chord *lo* *hi* *notes-per-chord* *key* *mode* degree))))
+      (play-arpeggio beat *beats-per-measure* chrd 1 vol 0))
+      (callback (*metro* (+ beat (* 0.5 dur)))
+                'model3
+                (+ beat dur)
+                3
+                (markov-sel degree *transitions*)
+                (markov-sel vol *vol-trans*))))
 
 (define *transitions* '((i iv n6 v vi viio)
                         (iv i)
@@ -453,51 +422,43 @@
                         (vi iv)
                         (viio i)))
 
-(define *scale* (pc:scale *key* 'harmonic))
 (define *octave* 12)
 
 (define cell1 '((0 0)
                 (5/2 1/2)))
 
+(define cells (list cell1))
+
 (define play-cell
-  (lambda (beat note cell)
+  (lambda (beat note notes-per-chord cell vol)
     (let* ((octave-bump (random (car cell)))
            (melody (pc:make-chord-fixed (+ note octave-bump)
-                                        *notes-per-chord*
+                                        notes-per-chord
                                         *scale*))
            (dur (random (cadr cell))))
-      (play-arpeggio beat 3 melody dur *default-vol* 0))))
+      (play-arpeggio beat 3 melody dur (markov-sel vol *vol-trans*) 0))))
 
 (define model3
-  (lambda (beat dur degree)
-    (let ((chrd (pc:make-chord-fixed c4
-                                     *notes-per-chord*
-                                     (pc:diatonic *key* *mode* degree))))
-      (play-cell beat (+ *octave* (random chrd)) cell1)
-      (play-arpeggio beat 3 chrd 1 *default-vol* 0))
+  (lambda (beat dur degree vol)
+    (repedal)
+    (let ((chrd (uniq (make-chord *lo* *hi* *notes-per-chord* *key* *mode* degree))))
+      (play-cell beat
+                 (+ *octave* (random chrd))
+                 *notes-per-chord*
+                 (random cells)
+                 vol)
+      (play-arpeggio beat 3 chrd dur (markov-sel vol *vol-trans*) 0))
       (callback (*metro* (+ beat (* 0.5 dur)))
                 'model3
                 (+ beat dur)
                 3
-                (random (cdr (assoc degree *transitions*))))))
+                (markov-sel degree *transitions*)
+                (markov-sel vol *vol-trans*))))
 
 (define cell2 '((-2 1 1)
                 (1 1 1)))
 
 (define cells (list cell1 cell2))
-
-(define model3
-  (lambda (beat dur degree)
-    (let ((chrd (pc:make-chord-fixed c4
-                                     *notes-per-chord*
-                                     (pc:diatonic *key* *mode* degree))))
-      (play-cell beat (+ *octave* (random chrd)) (random cells))
-      (play-arpeggio beat 3 chrd 1 *default-vol* 0))
-      (callback (*metro* (+ beat (* 0.5 dur)))
-                'model3
-                (+ beat dur)
-                3
-                (random (cdr (assoc degree *transitions*))))))
 
 (define cell3 '((0 1)
                 (3/2 3/2)))
@@ -513,14 +474,14 @@
     (pc:invert lst *scale*)))
 
 (define play-cell
-  (lambda (beat note cell)
+  (lambda (beat note notes-per-chord cell vol)
     (let* ((octave-bump (random (car cell)))
            (melody (pc:make-chord-fixed (+ octave-bump note)
-                                        *notes-per-chord*
+                                        notes-per-chord
                                         *scale*))
            (xformer (random (list identity inverter)))
            (dur (random (cadr cell))))
-      (play-arpeggio beat 3 (xformer melody) dur *default-vol* 0))))
+      (play-arpeggio beat 3 (xformer melody) dur vol 0))))
 
 (define model3)
 
@@ -542,6 +503,8 @@
 
 (define model4
   (lambda (beat dur)
+    (if (> (random) 0.67)
+        (semi-repedal))
     (*metro* 'set-tempo (cosr 140 60 1/21))
     (let ((chrd (pc:make-chord (random *los*)
                                (random *his*)

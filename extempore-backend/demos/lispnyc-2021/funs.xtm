@@ -1,30 +1,38 @@
 ;;;; Convenience functions for MIDI
 
-(define play-midi
-  (lambda (beat dur note vol)
-    (mplay *midiout*
-           note
-           vol
-           dur
-           *midi-channel*)))
+(define release-pedal
+  (lambda ()
+    (send-midi-cc (now)
+                  *midiout*
+                  *midi-sustain*
+                  *midi-off*
+                  *piano-channel*)))
 
-(define play-arpeggio
-  (lambda (beat max-dur notes note-dur vol total-dur)
-    (let* ((total-dur (+ total-dur note-dur))
-           (next-play (+ beat note-dur))
-           (note (car notes))
-           (tail (cdr notes)))
-      (if (<= total-dur max-dur)
-          (begin
-            (play-midi beat (* 2 note-dur) note vol)
-            (callback (*metro* next-play)
-                      'play-arpeggio
-                      next-play
-                      max-dur
-                      (append tail (list note))
-                      note-dur
-                      (random (cdr (assoc vol *vol-trans*)))
-                      total-dur))))))
+(define semi-release-pedal
+  (lambda ()
+    (send-midi-cc (now)
+                  *midiout*
+                  *midi-sustain*
+                  *midi-semi-off*
+                  *piano-channel*)))
+
+(define depress-pedal
+  (lambda ()
+    (send-midi-cc (+ (now) (*metro* 'get-beat 1/8))
+                  *midiout*
+                  *midi-sustain*
+                  *midi-on*
+                  *piano-channel*)))
+
+(define repedal
+  (lambda ()
+    (release-pedal)
+    (depress-pedal)))
+
+(define semi-repedal
+  (lambda ()
+    (semi-release-pedal)
+    (depress-pedal)))
 
 (define auxilary-functions-loaded
   (lambda ()
