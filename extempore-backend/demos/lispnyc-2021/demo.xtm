@@ -1,9 +1,11 @@
 ;;;; A demo for the LispNYC meeting
 ;;;;
-;;;; This code was adapted from the talk that Andrew Sorensen gave at
-;;;; Codemania 2015: "A Programmers's Guide to Western Music" as well
-;;;; as from Ben Swift's documentation for the new "patterns" feature
-;;;; in Extempore.
+;;;; This code was adapted from three sources:
+;;;; 1) the talk that Andrew Sorensen gave at Codemania 2015:
+;;;;    "A Programmers's Guide to Western Music"
+;;;; 2) the talk I (Duncan McGreggor) gave for Glasgow Code Craft in 2021, and
+;;;; 3) from Ben Swift's documentation for the new "patterns" feature
+;;;;    in Extempore.
 
 ;;; Extempore Music Preparation
 ;;;
@@ -152,7 +154,7 @@
 ;;;
 ;;; 1000 A.D., Black Adder Series 1 - notes played in a sequence, acting in harmony
 
-(set! *scale* (pc:scale c1 'aeolian))
+(set! *scale* (pc:scale a1 'aeolian))
 
 (:> model-1a
     16
@@ -212,7 +214,7 @@
 ;; * page 94 of the pdf file, but shown as page 78 of the original
 
 (define melody
-  (list a4 g4 f4 e4 g4 g4 a4 f4 e4 g4 '(e4 d4 e4) f4 e4 d4))
+  (list a4 g4 f4 e4 g4 g4 a4 f4 e4 g4 (list e4 d4 e4) f4 e4 d4))
 
 (:> pie-iesu
     64
@@ -226,7 +228,29 @@
 
 (:| pie-iesu)
 
+
 ;; Simple melody stats for "Pie Iesu":
+;; 69 -> 67 = -2
+;; 67 -> 65 = -2
+;; 65 -> 64 = -1
+;; 64 -> 67 = +3
+;; 67 -> 69 = +2
+;; 69 -> 65 = -4
+;; 65 -> 64 = -1
+;; 64 -> 67 = +3
+;; 67 -> (64 62 64)
+;; (64 62 64) -> 65
+;; 65 -> 64 = -1
+;; 64 -> 62 = -2
+
+(set! *scale* (pc:scale a1 'aeolian))
+
+(println *scale*)
+(println (list c4 d4 e4 f4 g4 a4 b4))
+(println (map (lambda (x) (rel a3 x)) *scale*))
+(println melody)
+(println (list c4 d4 e4 f4 g4 a4 b4))
+
 ;; * 0 w   (1) -> 0.07 (0.07)
 ;; * 1 w d (6) -> 0.43 (0.5)
 ;; * 1 w u (4) -> 0.29 (0.79)
@@ -251,7 +275,7 @@
   (lambda (acc note)
     (if (= (length acc) *melody-length*)
         acc
-        (make-melody (cons (pc:quantize note) acc) (next-note note)))))
+        (make-melody (cons (qnt note) acc) (next-note note)))))
 
 (define starting-note a4)
 
@@ -277,17 +301,18 @@
 ;; * 2 w d -> (1 w d, 1 w d)
 
 (define *transitions*
-  '(((2 -) (4 +) (2 +) (2 -))
-    ((4 +) (0 +) (4 -))
-    ((0 +) (2 +))
-    ((2 +) (4 -) (2 -))
+  '(((2 -) (2 -) (1 -) (2 +))
+    ((1 -) (3 +) (2 -))
+    ((3 +) (2 +) (2 -))
+    ((2 +) (1 +))
+    ((1 +) (1 -))
     ((4 -) (2 -))))
 
 (define make-melody
   (lambda (acc trans note)
     (if (= (length acc) *melody-length*)
         acc
-        (make-melody (cons note acc)
+        (make-melody (cons (qnt note) acc)
                 (markov-sel trans *transitions*)
                 (eval (rotate (cons note trans) 1))))))
 
