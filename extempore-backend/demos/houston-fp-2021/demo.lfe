@@ -17,243 +17,219 @@
 (include-lib "include/arturia/modular-v/midi-gentle-gee.lfe")
 
 (xt.midi:init)
+
 (xt.midi:list-devices)
 
-(set device-name "*midiout*")
-(set device-id 2)
-(xt.midi:create-out-stream device-name device-id)
+;; Set up general MIDI
+(progn
+  (set device-name "*midiout*")
+  (set device-id 2)
+  (xt.midi:create-out-stream device-name device-id))
 
 ;;; Main Sequence
 
-(set midi-channel 2)
-(set sequence-name "seq-1")
+;; Set up sequence-specific MIDI and timing
+(progn
+  (set midi-channel 2)
+  (set sequence-name "seq-1")
+  (set beats-per-minute 108)
+  (set beats-per-measure 6)
+  (set note-timing "1/2")
+  'ok)
 
-(set seq1 '(c#3 c#4 c#3 c#4 e3 g#3))
-(set seq2 '(c#3 c#4 c#3 c#4 e3 g#3 e4 g#3))
-(set seq3 '(e3 e3 e4 g#4 e4 b4 g#4 d#5))
-(set seq4 '(e3 d#4 a#5 g4))
-(set seq5 '(e3 g#3 c#4 e5))
-(set seq6 '(e3 e4 g#4 g#3))
-(set pulse1 '(127 127 127 127 127 127))
-(set pulse2 '(127 127 127 127 127 127 127 127))
-(set pulse3 '(127 127 127 127))
+;; Define the notes and pulses we'll use as well as the options
+(progn
+  (set seq1 '(c#3 c#4 c#3 c#4 e3 g#3))
+  (set seq2 '(c#3 c#4 c#3 c#4 e3 g#3 e4 g#3))
+  (set seq3 '(e3 e3 e4 g#4 e4 b4 g#4 d#5))
+  (set seq4 '(e3 d#4 a#5 g4))
+  (set seq5 '(e3 g#3 c#4 e5))
+  (set seq6 '(e3 e4 g#4 g#3))
+  (set pulse1 '(127 127 127 127 127 127))
+  (set pulse2 '(127 127 127 127 127 127 127 127))
+  (set pulse3 '(127 127 127 127))
+  ;; Create options for use by the MIDI functions we'll be calling
+  (set seq-opts (xt.seq:midi-opts sequence-name
+                                  device-name
+                                  device-id
+                                  midi-channel
+                                  seq1
+                                  pulse1
+                                  beats-per-minute
+                                  beats-per-measure
+                                  note-timing))
+  'ok)
 
-(set beats-per-minute 108)
-(set beats-per-measure 6)
-(set note-timing "1/2")
+;; Set up some default values
+(progn
+  (set on 127)
+  (set off 0)
+  (set initial-volume 70)
+  (set initial-cutoff 7)
+  'ok)
 
-(set seq-opts (xt.seq:midi-opts sequence-name
-                                device-name
-                                device-id
-                                midi-channel
-                                seq1
-                                pulse1
-                                beats-per-minute
-                                beats-per-measure
-                                note-timing))
+;; Define some convenience functions
+(defun cc (knob val)
+  (xt.midi:cc (mupd seq-opts 'cc-code knob 'cc-value val)))
 
-(defun initial-cutoff () 15)
-(xt.midi:cc (mupd seq-opts 'cc-code (cutoff-filter-1) 'cc-value (initial-cutoff)))
-(xt.midi:cc-off (mupd seq-opts 'cc-code (resonance-filter-1)))
+(defun ramp (knob init-val final-val ramp-time)
+  (xt.midi:cc-ramp
+   (mupd seq-opts 'cc-code knob) init-val final-val ramp-time))
 
-;; Adjust volume for increase due to effects
-(xt.midi:cc (mupd seq-opts 'cc-code (general-volume) 'cc-value 70))
+(defun update-knob
+  ((knob `(,head . ,tail))
+   (xt.midi:cc (mupd seq-opts 'cc-code knob 'cc-value head))
+   (++ tail (list head))))
 
-;; Initialize delay effect
-(xt.midi:cc (mupd seq-opts 'cc-code (wet-level-delay) 'cc-value 0))
-(xt.midi:cc (mupd seq-opts 'cc-code (delay-tempo-sync-midi) 'cc-value 127))
-(xt.midi:cc (mupd seq-opts 'cc-code (rate-left-delay) 'cc-value 90))
-(xt.midi:cc (mupd seq-opts 'cc-code (rate-right-delay) 'cc-value 108))
+(defun change-seq (notes pulses)
+  (xt.seq:set-midi-notes! (mupd seq-opts 'notes notes 'pulses pulses)))
 
-;; Initialize chorous effect
-(xt.midi:cc (mupd seq-opts 'cc-code (wel-level-chorous) 'cc-value 0))
-(xt.midi:cc (mupd seq-opts 'cc-code (chorous-vca-1) 'cc-value 0))
+(defun initialise-knobs ()
+  ;; The basics
+  (cc (general-volume) initial-volume)
+  (cc (cutoff-filter-1) initial-cutoff)
+  (cc (resonance-filter-1) off)
+  ;; The delay effect
+  (cc (wet-level-delay) off)
+  (cc (delay-tempo-sync-midi) on)
+  (cc (rate-left-delay) 90)
+  (cc (rate-right-delay) 108)
+  ;; the chorous effect
+  (cc (wet-level-chorous) off)
+  (cc (chorous-vca-1) off))
+
+(defun schedule-knob (prefix ms pid knob data)
+  (erlang:send_after ms pid `(,prefix ,ms ,pid ,knob ,(update-knob knob data))))
+
+(defun random-walk (layer-name)
+  (let ((half (loise:traverse layer-name 'brownian)))
+    (++ (lists:reverse half half))))
 
 ;; Start playing the seqence
 (xt.seq:start seq-opts)
 
-;; Add in the chorous
-(xt.midi:cc (mupd seq-opts 'cc-code (wel-level-chorous) 'cc-value 65))
+;; Create the noise layers we'll be using
+(progn
+  (set noise-opts `#m(scale-func ,#'lutil-math:midi-scale/2))
+  (loise:add-layer 'cutoff (mset noise-opts 'count 100))
+  (loise:add-layer 'resonance (mset noise-opts 'count 200 'multiplier 2))
+  (loise:add-layer 'osc3 (mset noise-opts 'count 500 'multiplier 1))
+  (loise:add-layer 'delay (mset noise-opts 'count 600 'multiplier 2)))
 
-;; Add in the delay
-(xt.midi:cc (mupd seq-opts 'cc-code (wet-level-delay) 'cc-value 60))
+;; Create random noise-walks fpr each
+(progn
+  (set cutoff (random-walk 'cutoff))
+  (set resonance (random-walk 'resonance))
+  (set osc3 (random-walk 'osc3))
+  (set delay (random-walk 'delay))
+  'ok)
 
+;; Set cutoff to the first generated values
+(ramp (cutoff-filter-1) initial-cutoff (car cutoff) 10)
 
-
-(set noise-opts `#m(scale-func ,#'lutil-math:midi-scale/2))
-
-(loise:add-layer 'cutoff (mset noise-opts 'count 100))
-(loise:add-layer 'resonance (mset noise-opts 'count 200))
-
-(set half-cutoff (loise:traverse 'cutoff 'brownian))
-(set cutoff (lists:append (lists:reverse half-cutoff) half-cutoff))
-
-(length half-cutoff)
-(length cutoff)
-
-(set half-resonance (loise:traverse 'resonance 'brownian))
-(set resonance (lists:append (lists:reverse half-resonance) half-resonance))
-
-;; Set cutoff and reso to the first generated values
-(xt.midi:cc-ramp (mupd seq-opts 'cc-code (cutoff-filter-1)) (initial-cutoff) (car cutoff) 10)
-(xt.midi:cc-ramp (mupd seq-opts 'cc-code (resonance-filter-1)) 0 (car resonance) 10)
-
-(defun update-cutoff
-  ((`(,head . ,tail))
-   (xt.midi:cc (mupd seq-opts 'cc-code (cutoff-filter-1) 'cc-value head))
-   (++ tail (list head))))
-
+;; Let's define a loop function that can receive messages and
+;; update a knob
 (defun loop-cutoff()
   (receive
     ('start
      (io:format "Starting ...~n")
-     (erlang:send_after 1000 (self) (update-cutoff cutoff))
+     (schedule-knob 'cutoff 500 (self) (cutoff-filter-1) cutoff)
      (loop-cutoff))
     ('stop
      (io:format "Stopping ...~n"))
-    (cutoff
-     (erlang:send_after 1000 (self) (update-cutoff cutoff))
+    (args 
+     (apply #'schedule-knob/5 args)
      (loop-cutoff))))
 
+;; Create a server and tell it to start
 (set loop-cutoff (spawn #'loop-cutoff/0))
 (! loop-cutoff 'start)
+
+;; Experiment done, let's stop it
 (! loop-cutoff 'stop)
 
-(defun update-resonance
-  ((`(,head . ,tail))
-   (xt.midi:cc (mupd seq-opts 'cc-code (resonance-filter-1) 'cc-value head))
-   (++ tail (list head))))
-
 ;; Switch to the next sequence
-(xt.seq:set-midi-notes! (mupd seq-opts 'notes seq2 'pulses pulse2))
-
-(defun loop-tweaks()
-  (receive
-    ('start
-     (io:format "Starting tweaker loop ...~n")
-     (erlang:send_after 700 (self) `#(cuto ,(update-cutoff cutoff)))
-     (erlang:send_after 500 (self) `#(reso ,(update-resonance resonance)))
-     (loop-tweaks))
-    ('stop
-     (io:format "Stopping tweaker loop ...~n"))
-    (`#(cuto ,data)
-     (erlang:send_after 700 (self) `#(curo ,(update-cutoff data)))
-     (loop-tweaks))
-    (`#(reso ,data)
-     (erlang:send_after 500 (self) `#(reso ,(update-resonance data)))
-     (loop-tweaks))))
-
-(set loop-tweaks (spawn #'loop-tweaks/0))
-(! loop-tweaks 'start)
-(! loop-tweaks 'stop)
-
-(xt.midi:cc (mupd seq-opts 'cc-code (cutoff-filter-1) 'cc-value (initial-cutoff)))
-(xt.midi:cc-off (mupd seq-opts 'cc-code (resonance-filter-1)))
-
-(loise:add-layer 'osc1 (mset noise-opts 'count 300))
-(loise:add-layer 'osc2 (mset noise-opts 'count 400))
-(loise:add-layer 'osc3 (mset noise-opts 'count 500))
-(loise:add-layer 'delay (mset noise-opts 'count 600))
-(loise:add-layer 'chorous (mset noise-opts 'count 700))
-
-(set half-osc1 (loise:traverse 'osc1 'brownian))
-(set osc1 (lists:append (lists:reverse half-osc1) half-osc1))
-
-(set half-osc2 (loise:traverse 'osc2 'brownian))
-(set osc2 (lists:append (lists:reverse half-osc2) half-osc2))
-
-(set half-osc3 (loise:traverse 'osc3 'brownian))
-(set osc3 (lists:append (lists:reverse half-osc3) half-osc3))
-
-(set half-delay (loise:traverse 'delay 'brownian))
-(set delay (lists:append (lists:reverse half-delay) half-delay))
-
-(set half-chorous (loise:traverse 'chorous 'brownian))
-(set chorous (lists:append (lists:reverse half-chorous) half-chorous))
-
-(defun update-osc1
-  ((`(,head . ,tail))
-   (xt.midi:cc (mupd seq-opts 'cc-code (gain-mixer-1) 'cc-value head))
-   (++ tail (list head))))
-
-(defun update-osc2
-  ((`(,head . ,tail))
-   (xt.midi:cc (mupd seq-opts 'cc-code (gain-mixer-2) 'cc-value head))
-   (++ tail (list head))))
-
-(defun update-osc3
-  ((`(,head . ,tail))
-   (xt.midi:cc (mupd seq-opts 'cc-code (gain-mixer-3) 'cc-value head))
-   (++ tail (list head))))
-
-(defun update-delay
-  ((`(,head . ,tail))
-   (xt.midi:cc (mupd seq-opts 'cc-code (wet-level-delay) 'cc-value head))
-   (++ tail (list head))))
-
-(defun update-chorous
-  ((`(,head . ,tail))
-   (xt.midi:cc (mupd seq-opts 'cc-code (wel-level-chorous) 'cc-value head))
-   (++ tail (list head))))
-
-(defun loop-tweaks()
-  (receive
-    ('start
-     (io:format "Starting tweaker loop ...~n")
-     (erlang:send_after 700 (self) `#(cuto ,(update-cutoff cutoff)))
-     (erlang:send_after 500 (self) `#(reso ,(update-resonance resonance)))
-     (erlang:send_after 1000 (self) `#(osc1 ,(update-osc1 osc1)))
-     (erlang:send_after 1500 (self) `#(osc2 ,(update-osc2 osc2)))
-     (erlang:send_after 2000 (self) `#(osc3 ,(update-osc3 osc3)))
-     (erlang:send_after 2500 (self) `#(delay ,(update-delay delay)))
-     (erlang:send_after 3000 (self) `#(chorous ,(update-chorous chorous)))
-     (loop-tweaks))
-    ('stop
-     (io:format "Stopping tweaker loop ...~n"))
-    (`#(cuto ,data)
-     (erlang:send_after 700 (self) `#(curo ,(update-cutoff data)))
-     (loop-tweaks))
-    (`#(reso ,data)
-     (erlang:send_after 500 (self) `#(reso ,(update-resonance data)))
-     (loop-tweaks))
-    (`#(osc1 ,data)
-     (erlang:send_after 1000 (self) `#(osc1 ,(update-osc1 data)))
-     (loop-tweaks))
-    (`#(osc2 ,data)
-     (erlang:send_after 1500 (self) `#(osc2 ,(update-osc2 data)))
-     (loop-tweaks))
-    (`#(osc3 ,data)
-     (erlang:send_after 2000 (self) `#(osc3 ,(update-osc3 data)))
-     (loop-tweaks))
-    (`#(delay ,data)
-     (erlang:send_after 2500 (self) `#(delay ,(update-delay data)))
-     (loop-tweaks))
-    (`#(chorous ,data)
-     (erlang:send_after 2500 (self) `#(chorous ,(update-chorous data)))
-     (loop-tweaks))))
+(change-seq seq2 pulse2)
 
 ;; Set cutoff and reso to the first generated values
-(xt.midi:cc-ramp (mupd seq-opts 'cc-code (cutoff-filter-1)) (initial-cutoff) (car cutoff) 10)
-(xt.midi:cc-ramp (mupd seq-opts 'cc-code (resonance-filter-1)) 0 (car resonance) 10)
-(xt.midi:cc-ramp (mupd seq-opts 'cc-code (gain-mixer-1)) 40 (car osc1) 15)
-(xt.midi:cc-ramp (mupd seq-opts 'cc-code (gain-mixer-2)) 40 (car osc3) 15)
-(xt.midi:cc-ramp (mupd seq-opts 'cc-code (gain-mixer-3)) 40 (car osc3) 15)
-(xt.midi:cc-ramp (mupd seq-opts 'cc-code (wet-level-delay)) 0 (car delay) 15)
-(xt.midi:cc-ramp (mupd seq-opts 'cc-code (wel-level-chorous)) 0 (car chorous) 15)
+(progn
+  (ramp (cutoff-filter-1) initial-cutoff (car cutoff) 10)
+  (ramp (resonance-filter-1) off (car resonance) 10))
 
-(set loop-tweaks (spawn #'loop-tweaks/0))
-(! loop-tweaks 'start)
-(! loop-tweaks 'stop)
+;; What does it look like when we want to control more than one knob?
+(defun loop-knob-tweaks()
+  (receive
+    ('start
+     (io:format "Starting tweaker loop ...~n")
+     (schedule-knob 'cutoff 500 (self) (cutoff-filter-1) cutoff)
+     (schedule-knob 'reso 1000 (self) (resonance-filter-1) resonance)
+     (loop-knob-tweaks))
+    ('stop
+     (io:format "Stopping tweaker loop ...~n"))
+    (args 
+     (apply #'schedule-knob/5 args)
+     (loop-knob-tweaks))))
+
+;; Start the mini-server
+(set loop-knob-tweaks (spawn #'loop-knob-tweaks/0))
+(! loop-knob-tweaks 'start)
+
+;; Bump the volume
+(ramp (general-volume) initial-volume 110 5)
+
+;; Now we know what we need to do, let's stop it and
+;; reset the knobs
+(! loop-knob-tweaks 'stop)
+
+;; Now let's go big
+(defun loop-knob-tweaks()
+  (receive
+    ('start
+     (io:format "Starting tweaker loop ...~n")
+     (schedule-knob 'cutoff 500 (self) (cutoff-filter-1) cutoff)
+     (schedule-knob 'reso 1000 (self) (resonance-filter-1) resonance)
+     (schedule-knob 'osc3 500 (self) (gain-mixer-3) osc3)
+     (schedule-knob 'delay 1000 (self) (wet-level-delay) delay)
+     (loop-knob-tweaks))
+    ('stop
+     (io:format "Stopping tweaker loop ...~n"))
+    (args 
+     (apply #'schedule-knob/5 args)
+     (loop-knob-tweaks))))
+
+;; Set all knobs to the first generated values
+(progn
+  (ramp (cutoff-filter-1) initial-cutoff (car cutoff) 5)
+  (ramp (resonance-filter-1) off (car resonance) 5)
+  (ramp (gain-mixer-3) 70 (car osc3) 10)
+  (ramp (wet-level-delay) 0 (car delay) 10))
+
+(set loop-knob-tweaks (spawn #'loop-knob-tweaks/0))
+(! loop-knob-tweaks 'start)
 
 ;; Switch to the next sequence
-(xt.seq:set-midi-notes! (mupd seq-opts 'notes seq3 'pulses pulse2))
-(xt.seq:set-midi-notes! (mupd seq-opts 'notes seq4 'pulses pulse3))
-(xt.seq:set-midi-notes! (mupd seq-opts 'notes seq5 'pulses pulse3))
-(xt.seq:set-midi-notes! (mupd seq-opts 'notes seq6 'pulses pulse3))
-(xt.seq:set-midi-notes! (mupd seq-opts 'notes seq2 'pulses pulse2))
-(xt.seq:set-midi-notes! (mupd seq-opts 'notes seq1 'pulses pulse1))
+(defun do-changes()
+  (change-seq seq3 pulse2)
+  (timer:sleep (trunc (* 3.7 1000 2.5)))
+  (change-seq seq4 pulse3)
+  (timer:sleep (trunc (* 3.7 1000 0.5)))
+  (change-seq seq5 pulse3)
+  (timer:sleep (trunc (* 3.7 1000 0.5)))
+  (change-seq seq6 pulse3)
+  (timer:sleep (trunc (* 3.7 1000 1)))
+  (change-seq seq2 pulse2)
+  (timer:sleep (trunc (* 3.7 1000 2.5)))
+  (change-seq seq1 pulse1))
 
-(! loop-tweaks 'stop)
+(do-changes)
+
+(! loop-knob-tweaks 'stop)
 
 (xt.seq:stop seq-opts)
 
+;; Extra: here's how to generate image representations of the data that was
+;;        used for the noise layers
+(loise:image "cutoff.png" #m(count 100 width 1600 height 1600))
+(loise:image "resonance.png" #m(count 200 multiplier 2 width 1600 height 1600))
+(loise:image "osc3.png" #m(count 500 multiplier 1 width 1600 height 1600))
+(loise:image "delay.png" #m(count 600 multiplier 2 width 1600 height 1600))
